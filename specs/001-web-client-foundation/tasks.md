@@ -201,3 +201,8 @@ Task: "Add keyboard and accessible-name coverage in app/client/src/components/ui
 - `[P]` appears only where work can be separated by file ownership after its prerequisites.
 - No task introduces product screens, authentication, expense logic, persistence or API communication.
 - The definitive palette and font assignments are already registered in the design contract; T007 only confirms their presence and never modifies `specs/`.
+
+## Phase 7: Convergence
+
+- [X] T032 CRITICAL Replace the direct `bg-black/10` overlay colors in `app/client/src/components/ui/alert-dialog.tsx`, `app/client/src/components/ui/dialog.tsx` and `app/client/src/components/ui/sheet.tsx` with a centralized semantic token per FR-004 and Constitution XXIV (contradicts)
+- [X] T033 Extend keyboard-driven observable coverage in `app/client/src/components/ui/tests/component-collection.test.tsx` and `app/client/src/components/ui/tests/accessibility.test.tsx` for checkbox, select, input OTP, sheet and Sonner focus/state behavior per FR-006, SC-003 and T022/T026 (partial)
