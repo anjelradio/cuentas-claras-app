@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+*.log
+.env*
+!.env.example
+.DS_Store
+
+# Artefactos y referencias locales del proyecto
+/design/
+/site/

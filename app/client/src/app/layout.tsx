@@ -32,7 +32,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="es" className={`${headline.variable} ${body.variable} ${label.variable}`}>
       <body>
         {children}
-        <Toaster theme="dark" richColors closeButton />
+        <Toaster position="top-center" closeButton />
       </body>
     </html>
   );

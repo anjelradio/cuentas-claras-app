@@ -1,23 +1,25 @@
-import { ComponentCollectionShowcase } from "@/components/shared/component-collection-showcase";
-import { DesignSystemShowcase } from "@/components/shared/design-system-showcase";
+import { headers } from "next/headers"
+import { redirect } from "next/navigation"
 
-export default function Home() {
+import { HomeHeader } from "@/components/layout/home-header"
+import { auth } from "@/lib/auth"
+
+/** Entrega la Home solo después de validar la sesión de Better Auth en servidor. */
+export default async function Home() {
+  const session = await auth.api.getSession({ headers: await headers() })
+
+  if (!session) {
+    redirect("/auth/login")
+  }
+
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-10 px-5 py-10 sm:px-8 lg:px-12">
-      <header className="max-w-3xl space-y-3">
-        <p className="font-label text-sm tracking-[0.18em] text-label uppercase">
-          Cuentas Claras
-        </p>
-        <h1 className="text-4xl leading-tight font-semibold sm:text-5xl">
-          Fundación visual lista para construir
-        </h1>
-        <p className="max-w-2xl text-base leading-7 text-body">
-          Tokens centralizados, tipografías con roles definidos y componentes
-          accesibles para las futuras funcionalidades del producto.
-        </p>
-      </header>
-      <DesignSystemShowcase />
-      <ComponentCollectionShowcase />
-    </main>
+    <div className="min-h-screen">
+      <HomeHeader user={session.user} />
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-5 py-12 sm:px-8 lg:px-12">
+        <p className="font-label text-sm tracking-[0.18em] text-label uppercase">Cuentas Claras</p>
+        <h1 className="text-4xl font-semibold sm:text-5xl">Tu espacio está listo</h1>
+        <p className="max-w-xl leading-7 text-body">Pronto podrás organizar tus gastos y cuentas desde aquí.</p>
+      </main>
+    </div>
   );
 }

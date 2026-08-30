@@ -1,0 +1,1 @@
+"""Infraestructura transversal del servidor."""

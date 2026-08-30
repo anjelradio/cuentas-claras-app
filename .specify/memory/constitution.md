@@ -1,15 +1,12 @@
 <!--
 Sync Impact Report
-- Cambio de versión: 1.1.0 → 1.1.1
+- Cambio de versión: 1.1.1 → 1.2.0
 - Principios modificados:
-  - IV. Arquitectura modular del backend → mismo título; se elimina la
-    calificación temporal de la arquitectura vigente.
-  - XIII. Autenticación mediante Better Auth y JWT → mismo título; se precisa
-    que la integración de autenticación debe definir la correspondencia de
-    claims del JWT e identificador interno.
+  - IX. SQLModel, SQLAlchemy y Alembic → mismo título; se añaden el registro
+    canónico de modelos para Alembic, el BaseModel persistente y la eliminación
+    lógica obligatoria.
 - Secciones añadidas: ninguna.
-- Secciones eliminadas: Decisiones aplazadas, incluidas sus subsecciones de
-  inicialización del backend y del frontend.
+- Secciones eliminadas: ninguna.
 - TODOs de seguimiento: ninguno.
 -->
 
@@ -313,6 +310,41 @@ base de datos compartida.
 
 Los cambios de modelos persistentes que afecten el esquema DEBEN acompañarse de
 la migración correspondiente cuando la base de datos ya haya sido inicializada.
+
+Los modelos persistentes DEBEN utilizar un `BaseModel` común definido en:
+
+app/server/app/db/base.py
+
+Salvo una justificación técnica explícita en su specification o plan, todo
+modelo persistente nuevo DEBE heredar de ese `BaseModel`.
+
+El `BaseModel` DEBE declarar como mínimo:
+
+- `id`: UUID estable como identificador primario.
+- `created_at`: fecha y hora de creación para auditoría.
+- `updated_at`: fecha y hora de la última modificación para auditoría.
+- `deleted_at`: fecha y hora opcional que representa eliminación lógica.
+
+No se DEBE eliminar físicamente un registro de dominio. Toda eliminación DEBE
+marcar `deleted_at` y preservar el registro para auditoría.
+
+Los repositories DEBEN excluir por defecto los registros con `deleted_at` no
+nulo de las consultas funcionales. Una consulta que incluya registros eliminados
+solo PUEDE existir cuando su propósito de auditoría o restauración esté
+documentado y sea explícito.
+
+El registro canónico de modelos para Alembic DEBE residir en:
+
+app/server/app/db/models.py
+
+Ese archivo DEBE importar cada modelo SQLModel persistente definido por los
+módulos del backend. Antes de generar o ejecutar una migración de Alembic, todo
+modelo nuevo DEBE incorporarse a ese registro; la configuración de Alembic DEBE
+importar dicho archivo para que el metadata completo esté disponible.
+
+Los modelos de cada capacidad siguen siendo propiedad de
+`app/server/app/modules/<nombre_del_modulo>/models/`; el registro central no
+DEBE contener definiciones de modelos ni reglas de negocio.
 
 ### X. Transacciones atómicas
 
@@ -1139,4 +1171,4 @@ specification o plan antes de implementarse.
 La constitución solo PUEDE modificarse mediante una enmienda explícita y
 versionada.
 
-**Version**: 1.1.1 | **Ratified**: 2026-08-29 | **Last Amended**: 2026-08-29
+**Version**: 1.2.0 | **Ratified**: 2026-08-29 | **Last Amended**: 2026-08-29
