@@ -40,7 +40,7 @@ export function GoogleSignInButton() {
     setIsPending(true)
 
     const invitationToken = searchParams.get("redirect")
-    const callbackURL = buildJoinPath(invitationToken) ?? "/my-events"
+    const callbackURL = buildJoinPath(invitationToken) ?? "/home"
     // Better Auth agrega el código de error real al completar el callback.
     const errorCallbackURL = buildLoginPath(invitationToken)
 

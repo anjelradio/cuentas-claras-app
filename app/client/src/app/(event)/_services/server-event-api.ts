@@ -2,6 +2,7 @@ import { headers } from "next/headers"
 import { notFound } from "next/navigation"
 import { cache } from "react"
 import type { EventDetail, EventMemberInfo, EventSummary } from "../_types/event"
+import { errorSchema, eventDetailSchema, eventMemberSchema, eventSummarySchema, myQrSchema } from "../_schemas/event-api-schemas"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
@@ -37,9 +38,9 @@ export const getCachedEventDetail = cache(async (eventId: string): Promise<Event
   if (res.status === 404) notFound()
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}))
-    throw new Error(errorData?.detail || `Error HTTP ${res.status}`)
+    throw new Error(errorSchema.safeParse(errorData).data?.message || `Error HTTP ${res.status}`)
   }
-  return res.json()
+  return eventDetailSchema.parse(await res.json())
 })
 
 export const getCachedEventMembers = cache(async (eventId: string): Promise<EventMemberInfo[]> => {
@@ -52,21 +53,28 @@ export const getCachedEventMembers = cache(async (eventId: string): Promise<Even
   if (res.status === 404) notFound()
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}))
-    throw new Error(errorData?.detail || `Error HTTP ${res.status}`)
+    throw new Error(errorSchema.safeParse(errorData).data?.message || `Error HTTP ${res.status}`)
   }
-  return res.json()
+  return eventMemberSchema.array().parse(await res.json())
 })
 
-export const getCachedUserEvents = cache(async (): Promise<EventSummary[]> => {
+export const getCachedUserEvents = cache(async (options: { activeOnly?: boolean } = {}): Promise<EventSummary[]> => {
   const reqHeaders = await getServerHeaders()
-  const res = await fetch(`${API_BASE}/events`, {
+  const query = options.activeOnly ? "?active_only=true" : ""
+  const res = await fetch(`${API_BASE}/events${query}`, {
     method: "GET",
     headers: reqHeaders,
   })
   
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}))
-    throw new Error(errorData?.detail || `Error HTTP ${res.status}`)
+    throw new Error(errorSchema.safeParse(errorData).data?.message || `Error HTTP ${res.status}`)
   }
-  return res.json()
+  return eventSummarySchema.array().parse(await res.json())
+})
+
+export const getCachedMyQr = cache(async (eventId: string): Promise<string | null> => {
+  const res = await fetch(`${API_BASE}/events/${eventId}/my-qr`, { headers: await getServerHeaders(), cache: "no-store" })
+  if (!res.ok) return null
+  return myQrSchema.parse(await res.json()).image_url
 })

@@ -1,10 +1,12 @@
-from enum import Enum
+from enum import StrEnum
 
-class EventStatus(str, Enum):
+
+class EventStatus(StrEnum):
     OPEN = "open"
     CLOSED = "closed"
 
-class MemberStatus(str, Enum):
+
+class MemberStatus(StrEnum):
     ACTIVE = "active"
     LEFT = "left"
     REMOVED = "removed"

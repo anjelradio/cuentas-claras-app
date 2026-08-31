@@ -1,0 +1,144 @@
+openapi: 3.1.0
+info:
+  title: "Cuentas Claras - Eventos: ciclo de vida y QR"
+  version: 1.0.0
+  description: Contrato incremental sobre la API existente de eventos.
+paths:
+  /api/events/{eventId}/leave:
+    post:
+      summary: Abandona un evento abierto
+      security: [{ bearerAuth: [] }]
+      parameters: [{$ref: '#/components/parameters/EventId'}]
+      responses:
+        '200':
+          description: Membresía marcada como left y QR desvinculado.
+          content: {application/json: {schema: {$ref: '#/components/schemas/OperationStatus'}}}
+        '400': {$ref: '#/components/responses/BusinessError'}
+        '401': {$ref: '#/components/responses/Error'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+  /api/events/{eventId}/transfer-ownership:
+    post:
+      summary: Transfiere propiedad a un miembro activo de un evento abierto
+      security: [{ bearerAuth: [] }]
+      parameters: [{$ref: '#/components/parameters/EventId'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [new_owner_id]
+              properties:
+                new_owner_id: {type: string}
+      responses:
+        '200':
+          description: Propiedad transferida de forma consistente.
+          content: {application/json: {schema: {$ref: '#/components/schemas/OperationStatus'}}}
+        '400': {$ref: '#/components/responses/BusinessError'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+  /api/events/{eventId}:
+    patch:
+      summary: Cierra o reabre el evento (solo dueño vigente)
+      security: [{ bearerAuth: [] }]
+      parameters: [{$ref: '#/components/parameters/EventId'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: {type: string, enum: [open, closed]}
+      responses:
+        '200':
+          description: Evento con estado vigente.
+          content: {application/json: {schema: {$ref: '#/components/schemas/EventRead'}}}
+        '400': {$ref: '#/components/responses/BusinessError'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+  /api/events/{eventId}/my-qr:
+    get:
+      summary: Obtiene el QR propio del miembro autenticado
+      security: [{ bearerAuth: [] }]
+      parameters: [{$ref: '#/components/parameters/EventId'}]
+      responses:
+        '200':
+          description: El valor es null si el miembro no registró QR. La lectura se permite también cuando el evento está cerrado.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MyQrRead'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+    put:
+      summary: Crea o reemplaza el QR propio de un evento abierto
+      security: [{ bearerAuth: [] }]
+      parameters: [{$ref: '#/components/parameters/EventId'}]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Imagen JPEG, PNG o WebP de máximo 5 MiB.
+      responses:
+        '200':
+          description: QR nuevo confirmado; la limpieza del activo previo se procesa sin alterar esta respuesta.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MyQrRead'}
+        '400': {$ref: '#/components/responses/BusinessError'}
+        '403': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '413': {$ref: '#/components/responses/BusinessError'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  parameters:
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+  responses:
+    Error:
+      description: Error público uniforme y sin secretos.
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorRead'}}}
+    BusinessError:
+      description: Regla de negocio o archivo inválido.
+      content: {application/json: {schema: {$ref: '#/components/schemas/ErrorRead'}}}
+  schemas:
+    OperationStatus:
+      type: object
+      required: [status]
+      properties: {status: {type: string, example: ok}}
+    MyQrRead:
+      type: object
+      required: [image_url]
+      properties:
+        image_url: {type: [string, 'null'], format: uri}
+    EventRead:
+      type: object
+      required: [id, name, icon, starts_at, status, user_id]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        icon: {type: string}
+        starts_at: {type: string, format: date-time}
+        status: {type: string, enum: [open, closed]}
+        user_id: {type: string}
+        closed_at: {type: [string, 'null'], format: date-time}
+    ErrorRead:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: string, example: FORBIDDEN}
+        message: {type: string, example: No tienes permiso para realizar esta operación.}
+        details: {type: [object, 'null'], additionalProperties: true}

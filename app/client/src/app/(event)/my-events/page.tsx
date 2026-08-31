@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Plus, ChevronRight } from "lucide-react"
 import { getCachedUserEvents } from "../_services/server-event-api"
+import { LeaveEventDialog } from "./_components/leave-event-dialog"
 
 export default async function MyEventsPage() {
   const events = await getCachedUserEvents()
@@ -25,9 +26,9 @@ export default async function MyEventsPage() {
       ) : (
         <div className="flex flex-col gap-4">
           {events.map((event) => (
-            <Link key={event.id} href={`/${event.id}`} className="block group">
+            <div key={event.id} className="block group">
               <div className="bg-[#181b27] border border-white/10 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between hover:bg-white/5 transition-all cursor-pointer gap-4">
-                <div className="flex flex-col md:flex-row items-center md:items-start gap-4 text-center md:text-left">
+                <Link href={`/${event.id}`} className="flex flex-1 flex-col md:flex-row items-center md:items-start gap-4 text-center md:text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg">
                   <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center text-2xl">
                     {event.icon || '📍'}
                   </div>
@@ -36,7 +37,7 @@ export default async function MyEventsPage() {
                     <p className="text-sm text-[#9699be]">{event.description}</p>
                     <p className="text-xs text-[#3d3bff] mt-1 font-medium">Empieza: {new Date(event.starts_at).toLocaleDateString()}</p>
                   </div>
-                </div>
+                </Link>
                 <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
                   {event.status === 'open' ? (
                     <span className="px-3 py-1 rounded-full bg-[#1ee370]/10 text-[#1ee370] text-xs font-semibold uppercase tracking-wider">
@@ -47,10 +48,11 @@ export default async function MyEventsPage() {
                       Cerrado
                     </span>
                   )}
-                  <ChevronRight className="text-[#9699be] group-hover:text-white transition-colors hidden md:block size-5" />
+                  {event.status === "open" && <LeaveEventDialog eventId={event.id} />}
+                  <Link href={`/${event.id}`} aria-label={`Abrir ${event.name}`} className="hidden rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:block"><ChevronRight className="size-5 text-[#9699be] transition-colors group-hover:text-white" /></Link>
                 </div>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}

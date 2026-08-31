@@ -1,16 +1,18 @@
 """Handlers globales que preservan un único contrato público de errores."""
 
+import logging
 from collections.abc import Sequence
 from typing import Any
 
 from fastapi import Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.errors import ApplicationError
 from app.schemas.errors import ErrorRead
+
+logger = logging.getLogger(__name__)
 
 
 def public_error_response(
@@ -88,8 +90,12 @@ async def handle_http_exception(_: Request, error: Exception) -> JSONResponse:
     )
 
 
-async def handle_unexpected_error(_: Request, __: Exception) -> JSONResponse:
+async def handle_unexpected_error(_: Request, error: Exception) -> JSONResponse:
     """Evita filtrar trazas, SQL, tokens o secretos de infraestructura."""
+    logger.error(
+        "Unhandled backend error",
+        exc_info=(type(error), error, error.__traceback__),
+    )
     return public_error_response(
         status_code=500,
         code="INTERNAL_ERROR",

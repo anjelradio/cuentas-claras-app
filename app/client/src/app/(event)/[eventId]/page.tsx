@@ -1,9 +1,12 @@
-import { notFound } from "next/navigation"
 import { EventActionsSection } from "./_components/event-actions-section"
 import { EventStatisticsCard } from "./_components/event-statistics-card"
 import { RecentActivitiesCard } from "./_components/recent-activities-card"
 import { RecentExpensesCard } from "./_components/recent-expenses-card"
-import { getCachedEventDetail } from "../_services/server-event-api"
+import { getCachedEventDetail, getCachedMyQr } from "../_services/server-event-api"
+import { listEventActivities } from "../_services/activity"
+import { EXPENSES_DEMO } from "@/app/expenses/_types/expense-demo"
+import { formatEventDate } from "../_lib/format-event-date"
+import { STATISTICS_DEMO } from "../_demo/event-home-demo"
 
 interface EventHomePageProps {
   params: Promise<{ eventId: string }>
@@ -12,16 +15,34 @@ interface EventHomePageProps {
 export default async function EventHomePage({ params }: EventHomePageProps) {
   const { eventId } = await params
   
-  const event = await getCachedEventDetail(eventId)
+  const [event, qrImage, activitiesData] = await Promise.all([
+    getCachedEventDetail(eventId), 
+    getCachedMyQr(eventId),
+    listEventActivities(eventId, 3, 0).catch(() => ({ items: [] }))
+  ])
 
   // Transform EventDetail into EventView for the components
   const eventView = {
     id: event.id,
     name: event.name,
     description: event.description || "",
-    dateLabel: `Inicio: ${new Date(event.starts_at).toLocaleDateString()}`,
-    icon: event.icon || "📅"
+    dateLabel: `Del ${formatEventDate(event.starts_at)} al ${formatEventDate(event.ends_at)}`,
+    icon: event.icon || "📅",
+    status: event.status,
   }
+  
+  const recentActivities = activitiesData.items
+  const recentExpenses = EXPENSES_DEMO.slice(0, 3).map((expense) => ({
+    id: expense.id,
+    description: expense.description ?? expense.name,
+    amount: Number(expense.amount.replace(/[^0-9.]/g, "")),
+    date: expense.dateInput,
+    category: expense.category,
+    title: expense.name,
+    payer: expense.payer,
+    amountLabel: expense.amount,
+    dateLabel: expense.date,
+  }))
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -30,7 +51,10 @@ export default async function EventHomePage({ params }: EventHomePageProps) {
           <span className="mb-4 text-6xl leading-none" aria-hidden="true">{eventView.icon}</span>
           <h1 className="mb-2 text-4xl font-semibold text-headline">{eventView.name}</h1>
           <p className="mb-2 text-muted-foreground">{eventView.description}</p>
-          <p className="text-sm text-muted-foreground">{eventView.dateLabel}</p>
+          <div className="mt-1 flex flex-col items-center gap-1 text-sm text-muted-foreground">
+            <span>Inicia el {formatEventDate(event.starts_at)}</span>
+            <span>Termina el {formatEventDate(event.ends_at)}</span>
+          </div>
         </section>
 
         <EventActionsSection
@@ -42,13 +66,14 @@ export default async function EventHomePage({ params }: EventHomePageProps) {
             { id: "generate-link", type: "link", name: "Link", label: "Generar link de invitación", description: "Enlace directo para compartir" }
           ]}
           debts={[]}
+          qrImage={qrImage}
         />
-        <EventStatisticsCard statistics={{ categories: [], totalAmount: 0 }} />
+        <EventStatisticsCard statistics={STATISTICS_DEMO} />
       </div>
 
       <aside className="flex flex-col gap-6 lg:col-span-5">
-        <RecentExpensesCard expenses={[]} />
-        <RecentActivitiesCard activities={[]} />
+        <RecentExpensesCard eventId={event.id} expenses={recentExpenses} />
+        <RecentActivitiesCard eventId={event.id} activities={recentActivities} />
       </aside>
     </div>
   )

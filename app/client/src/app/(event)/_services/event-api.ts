@@ -1,16 +1,18 @@
 
-import type { 
+import type {
   EventDetail, 
+  EventRead,
   EventSummary, 
   EventMemberInfo, 
   EventInvitation, 
   EventCreatePayload, 
   EventUpdatePayload 
 } from "../_types/event";
+import { errorSchema, eventDetailSchema, eventInvitationSchema, eventMemberSchema, eventReadSchema, eventSummarySchema, myQrSchema, operationSchema } from "../_schemas/event-api-schemas";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
-async function getHeaders(): Promise<HeadersInit> {
+async function getHeaders(contentType = true): Promise<HeadersInit> {
   // Always runs in browser / client component context for MVP.
   // Obtain the JWT via better-auth client plugin.
   const tokenRes = await fetch("/api/auth/token");
@@ -19,15 +21,12 @@ async function getHeaders(): Promise<HeadersInit> {
   }
   const jwtData = await tokenRes.json();
 
-  return {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${jwtData.token}`,
-  };
+  return { ...(contentType ? { "Content-Type": "application/json" } : {}), "Authorization": `Bearer ${jwtData.token}` };
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.ok) {
-    if (res.status === 204) return undefined as any as T;
+    if (res.status === 204) return undefined as T;
     return res.json() as Promise<T>;
   }
 
@@ -38,12 +37,9 @@ async function handleResponse<T>(res: Response): Promise<T> {
   let errorMessage = `Error HTTP ${res.status}`;
   try {
     const errorData = await res.json();
-    if (errorData?.detail) {
-      errorMessage = typeof errorData.detail === "string" 
-        ? errorData.detail 
-        : JSON.stringify(errorData.detail);
-    }
-  } catch (e) {
+    const parsed = errorSchema.safeParse(errorData);
+    if (parsed.success) errorMessage = parsed.data.message;
+  } catch {
     // Cannot parse JSON, fallback to status text
     errorMessage = res.statusText || errorMessage;
   }
@@ -57,12 +53,13 @@ async function handleResponse<T>(res: Response): Promise<T> {
  * devolviéndolos listos para mostrarse o procesarse.
  */
 export const EventApi = {
-  async listUserEvents(): Promise<EventSummary[]> {
-    const res = await fetch(`${API_BASE}/events`, {
+  async listUserEvents(options: { activeOnly?: boolean } = {}): Promise<EventSummary[]> {
+    const query = options.activeOnly ? "?active_only=true" : ""
+    const res = await fetch(`${API_BASE}/events${query}`, {
       method: "GET",
       headers: await getHeaders(),
     });
-    return handleResponse<EventSummary[]>(res);
+    return eventSummarySchema.array().parse(await handleResponse<unknown>(res));
   },
 
   async getEventDetail(eventId: string): Promise<EventDetail> {
@@ -70,7 +67,7 @@ export const EventApi = {
       method: "GET",
       headers: await getHeaders(),
     });
-    return handleResponse<EventDetail>(res);
+    return eventDetailSchema.parse(await handleResponse<unknown>(res));
   },
 
   async getEventMembers(eventId: string): Promise<EventMemberInfo[]> {
@@ -78,25 +75,25 @@ export const EventApi = {
       method: "GET",
       headers: await getHeaders(),
     });
-    return handleResponse<EventMemberInfo[]>(res);
+    return eventMemberSchema.array().parse(await handleResponse<unknown>(res));
   },
 
-  async createEvent(data: EventCreatePayload): Promise<EventDetail> {
+  async createEvent(data: EventCreatePayload): Promise<EventRead> {
     const res = await fetch(`${API_BASE}/events`, {
       method: "POST",
       headers: await getHeaders(),
       body: JSON.stringify(data),
     });
-    return handleResponse<EventDetail>(res);
+    return eventReadSchema.parse(await handleResponse<unknown>(res));
   },
 
-  async updateEvent(eventId: string, data: EventUpdatePayload): Promise<EventDetail> {
+  async updateEvent(eventId: string, data: EventUpdatePayload): Promise<EventRead> {
     const res = await fetch(`${API_BASE}/events/${eventId}`, {
       method: "PATCH",
       headers: await getHeaders(),
       body: JSON.stringify(data),
     });
-    return handleResponse<EventDetail>(res);
+    return eventReadSchema.parse(await handleResponse<unknown>(res));
   },
 
   async deleteEvent(eventId: string): Promise<void> {
@@ -104,7 +101,7 @@ export const EventApi = {
       method: "DELETE",
       headers: await getHeaders(),
     });
-    return handleResponse<void>(res);
+    await handleResponse<void>(res);
   },
 
   async generateInvitation(eventId: string): Promise<EventInvitation> {
@@ -112,7 +109,7 @@ export const EventApi = {
       method: "POST",
       headers: await getHeaders(),
     });
-    return handleResponse<EventInvitation>(res);
+    return eventInvitationSchema.parse(await handleResponse<unknown>(res));
   },
 
   async joinEvent(tokenHash: string): Promise<void> {
@@ -121,7 +118,7 @@ export const EventApi = {
       headers: await getHeaders(),
       body: JSON.stringify({ token_hash: tokenHash }),
     });
-    return handleResponse<void>(res);
+    operationSchema.parse(await handleResponse<unknown>(res));
   },
 
   async removeMember(eventId: string, memberId: string): Promise<void> {
@@ -129,7 +126,7 @@ export const EventApi = {
       method: "DELETE",
       headers: await getHeaders(),
     });
-    return handleResponse<void>(res);
+    await handleResponse<void>(res);
   },
 
   async transferOwnership(eventId: string, newOwnerId: string): Promise<void> {
@@ -138,6 +135,23 @@ export const EventApi = {
       headers: await getHeaders(),
       body: JSON.stringify({ new_owner_id: newOwnerId }),
     });
-    return handleResponse<void>(res);
+    operationSchema.parse(await handleResponse<unknown>(res));
+  },
+
+  async leaveEvent(eventId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/events/${eventId}/leave`, { method: "POST", headers: await getHeaders() });
+    operationSchema.parse(await handleResponse<unknown>(res));
+  },
+
+  async getMyQr(eventId: string) {
+    const res = await fetch(`${API_BASE}/events/${eventId}/my-qr`, { method: "GET", headers: await getHeaders() });
+    return myQrSchema.parse(await handleResponse<unknown>(res));
+  },
+
+  async upsertMyQr(eventId: string, file: File) {
+    const body = new FormData();
+    body.set("file", file);
+    const res = await fetch(`${API_BASE}/events/${eventId}/my-qr`, { method: "PUT", headers: await getHeaders(false), body });
+    return myQrSchema.parse(await handleResponse<unknown>(res));
   }
 };

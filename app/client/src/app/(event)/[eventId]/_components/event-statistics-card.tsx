@@ -37,7 +37,7 @@ export function EventStatisticsCard({ statistics }: EventStatisticsCardProps) {
 
                 return (
                   <circle
-                    key={category.label}
+                    key={category.name}
                     cx="16"
                     cy="16"
                     r="12"
@@ -62,16 +62,17 @@ export function EventStatisticsCard({ statistics }: EventStatisticsCardProps) {
 
           <ul className="flex w-full flex-col gap-1" aria-label="Distribución de gastos por categoría">
             {statistics.categories.map((category) => (
-              <li key={category.label} className="flex items-center justify-between gap-4 border-b border-border/60 p-3 last:border-b-0">
+              <li key={category.name} className="flex items-center justify-between gap-4 border-b border-border/60 p-3 last:border-b-0">
                 <span className="flex min-w-0 items-center gap-3">
                   <span
                     className="size-2 shrink-0 rounded-full"
                     style={{ backgroundColor: toneColors[category.tone] }}
                     aria-hidden="true"
                   />
+                  {category.icon && <category.icon className="size-4 text-muted-foreground shrink-0" aria-hidden="true" />}
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-headline">{category.label}</span>
-                    <span className="block text-xs text-muted-foreground">Pagado por {category.payer}</span>
+                    <span className="block truncate text-sm font-medium text-headline">{category.label || category.name}</span>
+                    {category.payer && <span className="block text-xs text-muted-foreground">Pagado por {category.payer}</span>}
                   </span>
                 </span>
                 <span className="shrink-0 text-sm font-semibold text-headline">

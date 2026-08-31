@@ -5,6 +5,7 @@ export interface EventView {
   dateLabel: string
   icon: string
   memberCount?: number
+  status?: "open" | "closed"
 }
 
 export interface InvitationOption {
@@ -59,7 +60,8 @@ export interface EventStatistics {
     tone: 'primary' | 'secondary' | 'tertiary' | 'success' | 'warning';
     label?: string; 
     payer?: string; 
-    amount: number 
+    amount: number;
+    icon?: any;
   }[]
 }
 

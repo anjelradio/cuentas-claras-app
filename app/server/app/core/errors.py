@@ -9,6 +9,17 @@ class ApplicationError(Exception):
     message = "Ocurrió un error interno."
     details: dict[str, object] | None = None
 
+    def __init__(
+        self,
+        message: str | None = None,
+        *,
+        details: dict[str, object] | None = None,
+    ) -> None:
+        """Permite a los casos de uso devolver mensajes públicos y seguros."""
+        self.message = message or type(self).message
+        self.details = details
+        super().__init__(self.message)
+
 
 class AuthenticationError(ApplicationError):
     """Indica una credencial ausente o inválida sin revelar la causa concreta."""
@@ -44,4 +55,3 @@ class ValidationError(ApplicationError):
     status_code = 400
     code = "BAD_REQUEST"
     message = "Error de validación."
-

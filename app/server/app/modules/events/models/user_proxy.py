@@ -1,4 +1,5 @@
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field, SQLModel
+
 
 class User(SQLModel, table=True):
     """
@@ -6,6 +7,7 @@ class User(SQLModel, table=True):
     We don't inherit from BaseModel because Better Auth uses a standard string ID,
     not a UUID. This model is just so SQLModel relationships can function.
     """
+
     id: str = Field(primary_key=True)
     name: str
     email: str

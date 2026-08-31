@@ -129,7 +129,9 @@ def test_tampered_jwt_is_rejected(
     private_key, jwk = jwt_material
     verifier = make_verifier(security_settings, lambda _: FakeJwksClient(jwk))
     valid_token = build_token(private_key)
-    tampered_token = f"{valid_token[:-1]}{'a' if valid_token[-1] != 'a' else 'b'}"
+    header, payload, signature = valid_token.split(".")
+    tampered_signature = f"{'a' if signature[0] != 'a' else 'b'}{signature[1:]}"
+    tampered_token = f"{header}.{payload}.{tampered_signature}"
 
     with pytest.raises(AuthenticationError):
         verifier.verify(tampered_token)

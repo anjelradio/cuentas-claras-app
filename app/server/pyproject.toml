@@ -9,6 +9,8 @@ description = "Fundación del backend de Cuentas Claras."
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.14",
+  "cloudinary>=1.46",
+  "Pillow>=12.3",
   "fastapi[standard]>=0.115",
   "psycopg[binary]>=3.2",
   "pydantic-settings>=2.6",

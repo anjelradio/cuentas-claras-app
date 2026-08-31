@@ -10,6 +10,7 @@ import { JoinEventModal } from "./_components/join-event-modal"
 import { CreateEventButton } from "./_components/create-event-button"
 import { MyDebtsSheet } from "./_components/my-debts-sheet"
 import { AddExpenseSheet } from "./_components/add-expense-sheet"
+import { getCachedUserEvents } from "../(event)/_services/server-event-api"
 import {
   mockRequireAttention,
   mockRecentEvents,
@@ -24,6 +25,12 @@ export default async function HomeDashboard() {
   }
 
   const firstName = session.user.name.split(" ")[0]
+  let activeEvents: Awaited<ReturnType<typeof getCachedUserEvents>> = []
+  try {
+    activeEvents = await getCachedUserEvents({ activeOnly: true })
+  } catch {
+    // El resto del Home sigue siendo utilizable si el backend de eventos no está disponible.
+  }
   const today = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())
 
   return (
@@ -61,7 +68,7 @@ export default async function HomeDashboard() {
               <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
                 <CreateEventButton />
                 <MyDebtsSheet />
-                <AddExpenseSheet />
+                <AddExpenseSheet activeEvents={activeEvents} />
                 <JoinEventModal />
               </div>
             </section>

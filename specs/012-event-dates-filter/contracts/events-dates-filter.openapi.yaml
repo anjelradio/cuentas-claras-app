@@ -1,0 +1,152 @@
+openapi: 3.1.0
+info:
+  title: Cuentas Claras - Eventos: fechas y filtro
+  version: 1.0.0
+  description: Contrato incremental de creación, edición, listado y detalle de eventos.
+paths:
+  /api/events:
+    get:
+      summary: Lista los eventos de la persona autenticada
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: active_only
+          in: query
+          required: false
+          description: Si es true, devuelve solo eventos abiertos. Si se omite o es false, incluye abiertos y cerrados.
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Resúmenes de eventos donde la persona conserva una membresía activa.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/EventSummaryRead' }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      summary: Crea un evento con período completo
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventCreateRequest' }
+      responses:
+        '201':
+          description: Evento creado y su creador convertido en miembro activo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventRead' }
+        '400': { $ref: '#/components/responses/BusinessError' }
+        '401': { $ref: '#/components/responses/Error' }
+  /api/events/{eventId}:
+    get:
+      summary: Obtiene el detalle de un evento al que pertenece la persona autenticada
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/EventId' }]
+      responses:
+        '200':
+          description: Detalle con las dos fechas del período.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventDetailRead' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      summary: Actualiza un evento del dueño vigente
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/EventId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventUpdateRequest' }
+      responses:
+        '200':
+          description: Evento actualizado con período válido.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventRead' }
+        '400': { $ref: '#/components/responses/BusinessError' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    Error:
+      description: Error público uniforme.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorRead' } } }
+    BusinessError:
+      description: Regla de negocio o período inválido.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorRead' } } }
+  schemas:
+    EventCreateRequest:
+      type: object
+      required: [name, icon, starts_at, ends_at]
+      properties:
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        icon: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+    EventUpdateRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        icon: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        status: { type: string, enum: [open, closed] }
+    EventSummaryRead:
+      type: object
+      required: [id, name, icon, starts_at, ends_at, status, member_count]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        icon: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        status: { type: string, enum: [open, closed] }
+        member_count: { type: integer, minimum: 0 }
+    EventRead:
+      type: object
+      required: [id, name, icon, starts_at, ends_at, status, user_id, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        icon: { type: string }
+        starts_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time }
+        status: { type: string, enum: [open, closed] }
+        user_id: { type: string }
+        closed_at: { type: [string, 'null'], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    EventDetailRead:
+      allOf:
+        - { $ref: '#/components/schemas/EventRead' }
+        - type: object
+          required: [is_owner]
+          properties:
+            owner_name: { type: [string, 'null'] }
+            is_owner: { type: boolean }
+    ErrorRead:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: [object, 'null'], additionalProperties: true }

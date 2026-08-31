@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation"
 import { Crown, X, Plus, ChevronLeft, Key, QrCode, Link2, Copy, Download } from "lucide-react"
 import { notFound } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
 import QRCode from "react-qr-code"
 import {
@@ -31,15 +31,29 @@ import type { EventMemberInfo, EventDetail } from "../../_types/event"
 function MemberItem({ 
   member, 
   isCurrentUserOwner, 
+  isEventOpen,
   onRemove, 
   onTransfer 
 }: { 
   member: EventMemberInfo, 
   isCurrentUserOwner: boolean,
-  onRemove: (id: string) => void,
-  onTransfer: (id: string) => void
+  isEventOpen: boolean,
+  onRemove: (id: string) => Promise<boolean>,
+  onTransfer: (id: string) => Promise<boolean>
 }) {
   const isOwner = member.role === "owner"
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isTransferOpen, setIsTransferOpen] = useState(false)
+  const [isRemoveOpen, setIsRemoveOpen] = useState(false)
+
+  const perform = async (action: (id: string) => Promise<boolean>, close: (open: boolean) => void) => {
+    setIsSubmitting(true)
+    try {
+      if (await action(member.user_id)) close(false)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-colors gap-4 border border-transparent hover:border-white/5">
@@ -61,46 +75,48 @@ function MemberItem({
       </div>
 
       <div className="flex items-center gap-2 w-full sm:w-auto">
-        {isCurrentUserOwner && !isOwner && (
+        {isCurrentUserOwner && isEventOpen && !isOwner && (
           <>
-            <AlertDialog>
+            <AlertDialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
               <AlertDialogTrigger render={
-                <button className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#5f4dff]/10 text-[#5f4dff] hover:bg-[#5f4dff]/20 transition-colors text-sm font-medium w-full sm:w-auto">
+                <button disabled={isSubmitting} className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#5f4dff]/10 text-[#5f4dff] hover:bg-[#5f4dff]/20 transition-colors text-sm font-medium w-full disabled:cursor-wait disabled:opacity-50 sm:w-auto">
                   <Crown className="size-4" />
                   <span className="sm:hidden">Ascender</span>
                 </button>
               } />
-              <AlertDialogContent className="bg-[#181b27] border-white/10 text-white sm:max-w-md">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>¿Ascender a organizador?</AlertDialogTitle>
-                  <AlertDialogDescription className="text-[#9699be]">
+              <AlertDialogContent className="flex w-full max-w-md flex-col gap-6 rounded-2xl border border-white/10 bg-[#181b27] p-8 text-white shadow-2xl">
+                <AlertDialogHeader className="flex w-full flex-col !place-items-center gap-1.5 !text-center sm:!place-items-center sm:!text-center">
+                  <span className="mb-2 flex size-16 items-center justify-center rounded-full bg-[#bd7aff]/10 text-[#bd7aff]"><Crown className="size-8" aria-hidden="true" /></span>
+                  <AlertDialogTitle className="w-full text-center">¿Ascender a organizador?</AlertDialogTitle>
+                  <AlertDialogDescription className="w-full text-center text-[#9699be]">
                     ¿Estás seguro de que quieres ascender a {member.name} a organizador? Perderás tus privilegios de dueño.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel className="bg-transparent hover:bg-white/5 border-white/10 text-white">Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => onTransfer(member.user_id)} className="bg-gradient-to-br from-[#5f4dff] to-[#1e1c9e] text-white border-none shadow-[0_4px_12px_rgba(61,59,255,0.3)] hover:shadow-[0_6px_16px_rgba(61,59,255,0.4)] transition-all">Aceptar</AlertDialogAction>
+                <AlertDialogFooter className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <AlertDialogCancel disabled={isSubmitting} className="h-12 rounded-xl border-border bg-transparent text-white hover:bg-white/5">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction disabled={isSubmitting} onClick={() => perform(onTransfer, setIsTransferOpen)} className="h-12 rounded-xl bg-gradient-to-br from-[#5f4dff] to-[#1e1c9e] text-white shadow-[0_4px_12px_rgba(61,59,255,0.3)] transition-all hover:-translate-y-0.5">{isSubmitting ? "Procesando…" : "Aceptar"}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
 
-            <AlertDialog>
+            <AlertDialog open={isRemoveOpen} onOpenChange={setIsRemoveOpen}>
               <AlertDialogTrigger render={
-                <button className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#ff4d4d]/10 text-[#ff4d4d] hover:bg-[#ff4d4d]/20 transition-colors text-sm font-medium w-full sm:w-auto">
+                <button disabled={isSubmitting} className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#ff4d4d]/10 text-[#ff4d4d] hover:bg-[#ff4d4d]/20 transition-colors text-sm font-medium w-full disabled:cursor-wait disabled:opacity-50 sm:w-auto">
                   <X className="size-4" />
                   <span className="sm:hidden">Remover</span>
                 </button>
               } />
-              <AlertDialogContent className="bg-[#181b27] border-white/10 text-white sm:max-w-md">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>¿Remover miembro?</AlertDialogTitle>
-                  <AlertDialogDescription className="text-[#9699be]">
+              <AlertDialogContent className="flex w-full max-w-md flex-col gap-6 rounded-2xl border border-white/10 bg-[#181b27] p-8 text-white shadow-2xl">
+                <AlertDialogHeader className="flex w-full flex-col !place-items-center gap-1.5 !text-center sm:!place-items-center sm:!text-center">
+                  <span className="mb-2 flex size-16 items-center justify-center rounded-full bg-error/10 text-error"><X className="size-8" aria-hidden="true" /></span>
+                  <AlertDialogTitle className="w-full text-center">¿Remover miembro?</AlertDialogTitle>
+                  <AlertDialogDescription className="w-full text-center text-[#9699be]">
                     ¿Estás seguro que quieres remover a {member.name}? Esta acción no se puede deshacer.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel className="bg-transparent hover:bg-white/5 border-white/10 text-white">Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => onRemove(member.user_id)} className="bg-gradient-to-br from-[#ff6b35] to-[#e65100] text-white border-none shadow-[0_4px_12px_rgba(255,107,53,0.3)] hover:shadow-[0_6px_16px_rgba(255,107,53,0.4)] transition-all">Remover</AlertDialogAction>
+                <AlertDialogFooter className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <AlertDialogCancel disabled={isSubmitting} className="h-12 rounded-xl border-border bg-transparent text-white hover:bg-white/5">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction disabled={isSubmitting} onClick={() => perform(onRemove, setIsRemoveOpen)} className="h-12 rounded-xl bg-gradient-to-br from-[#ff6b35] to-[#e65100] text-white shadow-[0_4px_12px_rgba(255,107,53,0.3)] transition-all hover:-translate-y-0.5">{isSubmitting ? "Procesando…" : "Remover"}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -116,7 +132,7 @@ function MemberItem({
  * Si el usuario autenticado es "owner", despliega funcionalidades para promover o eliminar,
  * además del flujo completo de creación de invitaciones (enlace, QR, y código).
  */
-export function MembersClient({ eventId, initialMembers, isOwner }: { eventId: string, initialMembers: EventMemberInfo[], isOwner: boolean }) {
+export function MembersClient({ eventId, initialMembers, isOwner, isEventOpen }: { eventId: string, initialMembers: EventMemberInfo[], isOwner: boolean, isEventOpen: boolean }) {
   const router = useRouter()
   const [members, setMembers] = useState<EventMemberInfo[]>(initialMembers)
   
@@ -140,9 +156,11 @@ export function MembersClient({ eventId, initialMembers, isOwner }: { eventId: s
     try {
       await EventApi.removeMember(eventId, memberId)
       toast.success("Miembro removido")
-      fetchData()
+      await fetchData()
+      return true
     } catch (err: any) {
       toast.error(err.message)
+      return false
     }
   }
 
@@ -150,9 +168,12 @@ export function MembersClient({ eventId, initialMembers, isOwner }: { eventId: s
     try {
       await EventApi.transferOwnership(eventId, memberId)
       toast.success("Propiedad transferida")
-      fetchData()
+      router.replace("/my-events")
+      router.refresh()
+      return true
     } catch (err: any) {
       toast.error(err.message)
+      return false
     }
   }
 
@@ -196,7 +217,7 @@ export function MembersClient({ eventId, initialMembers, isOwner }: { eventId: s
             <p className="text-xs text-[#9699be] mt-1">{members.length} miembros</p>
           </div>
           
-          {isOwner && (
+          {isOwner && isEventOpen && (
             <Sheet>
               <SheetTrigger render={
                 <button className="bg-[#3d3bff] hover:bg-[#3d3bff]/90 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2">
@@ -273,6 +294,7 @@ export function MembersClient({ eventId, initialMembers, isOwner }: { eventId: s
               key={member.user_id} 
               member={member} 
               isCurrentUserOwner={isOwner} 
+              isEventOpen={isEventOpen}
               onRemove={handleRemove}
               onTransfer={handleTransfer}
             />

@@ -1,6 +1,8 @@
-from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict
+
 
 class EventInvitationRead(BaseModel):
     id: UUID
@@ -8,5 +10,5 @@ class EventInvitationRead(BaseModel):
     token_hash: str
     expires_at: datetime
     created_at: datetime
-    
+
     model_config = ConfigDict(from_attributes=True)

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ArrowDownLeft, ArrowLeft, Image as ImageIcon, X } from "lucide-react"
+import { ArrowDownLeft, ArrowLeft, X } from "lucide-react"
 
 import {
   Sheet,
@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/sheet"
 import { QuickActionButton } from "@/components/custom/quick-action-button"
 import { ReceiptUploadPlaceholder } from "@/components/custom/receipt-upload-placeholder"
+import type { EventSummary } from "../../(event)/_types/event"
 
-export function AddExpenseSheet() {
+export function AddExpenseSheet({ activeEvents = [] }: { activeEvents?: EventSummary[] }) {
   const [open, setOpen] = React.useState(false)
   const [step, setStep] = React.useState<"select" | "upload">("select")
 
@@ -47,20 +48,27 @@ export function AddExpenseSheet() {
               <SheetClose render={<button className="p-1 text-muted-foreground transition-colors hover:text-headline" aria-label="Cerrar"><X className="size-6" /></button>} />
             </SheetHeader>
 
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => setStep("upload")}
-                className="flex items-center gap-4 rounded-xl border border-transparent p-3 text-left transition-colors hover:border-border hover:bg-headline/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <div className="flex size-12 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-muted-foreground">
-                  <ImageIcon className="size-5" aria-hidden="true" />
-                </div>
-                <div>
-                  <h4 className="mb-0.5 font-medium text-headline">Samaipata 2026</h4>
-                  <p className="text-xs text-muted-foreground">4 miembros</p>
-                </div>
-              </button>
+            <div className="flex flex-col gap-2" aria-live="polite">
+              {activeEvents.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  No tienes eventos abiertos disponibles.
+                </p>
+              ) : activeEvents.map((event) => (
+                <button
+                  key={event.id}
+                  type="button"
+                  onClick={() => setStep("upload")}
+                  className="flex items-center gap-4 rounded-xl border border-transparent p-3 text-left transition-colors hover:border-border hover:bg-headline/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="flex size-12 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-2xl" aria-hidden="true">
+                    {event.icon}
+                  </span>
+                  <span>
+                    <span className="mb-0.5 block font-medium text-headline">{event.name}</span>
+                    <span className="block text-xs text-muted-foreground">{event.member_count} miembros</span>
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         )}

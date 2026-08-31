@@ -9,17 +9,18 @@ interface EventFormProps {
   mode: "create" | "edit"
   eventId?: string
   initialData?: EventDetail
-  onSubmitAction: (data: any) => Promise<void>
+  onSubmitAction: (data: EventCreatePayload | EventUpdatePayload) => Promise<void>
 }
 
-export function EventForm({ mode, eventId, initialData, onSubmitAction }: EventFormProps) {
+export function EventForm({ mode, initialData, onSubmitAction }: EventFormProps) {
   const router = useRouter()
   const isEditing = mode === "edit"
 
   const [icon, setIcon] = useState(initialData?.icon || '✈️')
   const [name, setName] = useState(initialData?.name || '')
   const [description, setDescription] = useState(initialData?.description || '')
-  const [date, setDate] = useState(initialData?.starts_at ? initialData.starts_at.substring(0, 10) : '')
+  const [startDate, setStartDate] = useState(initialData?.starts_at ? initialData.starts_at.substring(0, 10) : '')
+  const [endDate, setEndDate] = useState(initialData?.ends_at ? initialData.ends_at.substring(0, 10) : '')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,8 +29,12 @@ export function EventForm({ mode, eventId, initialData, onSubmitAction }: EventF
       toast.error("El nombre del evento es obligatorio")
       return
     }
-    if (!date) {
-      toast.error("La fecha del evento es obligatoria")
+    if (!startDate || !endDate) {
+      toast.error("Las fechas de inicio y fin son obligatorias")
+      return
+    }
+    if (endDate < startDate) {
+      toast.error("La fecha de fin no puede ser anterior a la fecha de inicio")
       return
     }
 
@@ -39,11 +44,12 @@ export function EventForm({ mode, eventId, initialData, onSubmitAction }: EventF
         name: name.trim(),
         description: description.trim() || undefined,
         icon,
-        starts_at: new Date(date).toISOString(),
+        starts_at: new Date(`${startDate}T00:00:00.000Z`).toISOString(),
+        ends_at: new Date(`${endDate}T23:59:59.999Z`).toISOString(),
       }
       await onSubmitAction(payload)
       // Note: The parent action should handle the redirect and success toast.
-    } catch (error: any) {
+    } catch {
       // API error strategy implemented via event-api.ts handles toasts for 4xx/5xx and throws for others, 
       // but if an error propagates here, we could catch it or rely on the parent.
       setLoading(false)
@@ -52,7 +58,7 @@ export function EventForm({ mode, eventId, initialData, onSubmitAction }: EventF
 
   return (
     <div className="max-w-md mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="bg-[#181b27] border border-border text-white rounded-2xl p-6 shadow-2xl">
+      <div className="rounded-[24px] border border-white/5 bg-[#151a30]/50 p-6 text-white shadow-2xl backdrop-blur-xl">
         <h2 className="text-2xl font-semibold mb-6">{isEditing ? "Editar evento" : "Crear nuevo evento"}</h2>
         
         <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
@@ -97,13 +103,24 @@ export function EventForm({ mode, eventId, initialData, onSubmitAction }: EventF
             />
           </div>
 
-          <div>
-            <label className="sr-only" htmlFor="fecha-evento">Fecha de inicio</label>
+          <div className="flex flex-col gap-2">
+            <label className="text-center text-sm font-medium text-muted-foreground" htmlFor="fecha-inicio-evento">Fecha de inicio</label>
             <input
-              id="fecha-evento"
+              id="fecha-inicio-evento"
               type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              className="w-full bg-[#151a30]/80 border border-border rounded-xl px-4 py-5 text-white focus:outline-none focus:ring-2 focus:ring-[#3d3bff]/50 focus:border-[#3d3bff]/50 transition-all text-center text-lg [&::-webkit-calendar-picker-indicator]:filter-[invert(1)]"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-center text-sm font-medium text-muted-foreground" htmlFor="fecha-fin-evento">Fecha de fin</label>
+            <input
+              id="fecha-fin-evento"
+              type="date"
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
               className="w-full bg-[#151a30]/80 border border-border rounded-xl px-4 py-5 text-white focus:outline-none focus:ring-2 focus:ring-[#3d3bff]/50 focus:border-[#3d3bff]/50 transition-all text-center text-lg [&::-webkit-calendar-picker-indicator]:filter-[invert(1)]"
             />
           </div>

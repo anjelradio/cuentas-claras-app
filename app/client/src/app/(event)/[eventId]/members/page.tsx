@@ -14,5 +14,5 @@ export default async function MembersPage({ params }: MembersPageProps) {
     getCachedEventMembers(eventId)
   ])
 
-  return <MembersClient eventId={eventId} initialMembers={members} isOwner={eventDetail.is_owner} />
+  return <MembersClient eventId={eventId} initialMembers={members} isOwner={eventDetail.is_owner} isEventOpen={eventDetail.status === "open"} />
 }

@@ -1,7 +1,10 @@
 from datetime import datetime
-from sqlmodel import Field
 from uuid import UUID
+
+from sqlmodel import Field
+
 from app.db.base import BaseModel
+
 
 class EventInvitation(BaseModel, table=True):
     event_id: UUID = Field(foreign_key="event.id")

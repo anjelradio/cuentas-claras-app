@@ -30,15 +30,15 @@ function JoinFlow() {
         EventApi.joinEvent(redirectToken)
           .then(() => {
             toast.success("Te has unido al evento exitosamente")
-            router.push("/home")
+            router.replace("/my-events")
           })
           .catch(err => {
             if (err.message === "Ya eres miembro de este evento.") {
               toast.success("Ya eres miembro de este evento")
-              router.push("/home")
+              router.replace("/my-events")
             } else {
               toast.error(err.message || "Error al unirse al evento")
-              router.push("/home")
+              router.replace("/my-events")
             }
           })
       }

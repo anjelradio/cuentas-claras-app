@@ -1,17 +1,19 @@
 import { ArrowRight, LayoutPanelTop, ReceiptText } from "lucide-react"
+import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { ExpenseSummary } from "../../_types/event-home-types"
 
 interface RecentExpensesCardProps {
+  eventId: string
   expenses: ExpenseSummary[]
 }
 
 /**
  * Muestra los gastos de referencia del evento sin permitir modificaciones.
  */
-export function RecentExpensesCard({ expenses }: RecentExpensesCardProps) {
+export function RecentExpensesCard({ eventId, expenses }: RecentExpensesCardProps) {
   return (
     <Card className="glass-panel rounded-[24px] border-border/60 bg-surface/80 py-0 text-body shadow-none">
       <CardHeader className="p-6">
@@ -46,7 +48,7 @@ export function RecentExpensesCard({ expenses }: RecentExpensesCardProps) {
             ))}
           </ul>
         )}
-        <Button type="button" className="w-full gap-2 bg-tertiary text-headline hover:bg-tertiary/90">
+        <Button render={<Link href={`/expenses/event/${eventId}`} />} nativeButton={false} className="w-full gap-2 bg-tertiary text-headline hover:bg-tertiary/90">
           <LayoutPanelTop className="size-4" aria-hidden="true" />
           Ver todos los gastos
           <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden="true" />

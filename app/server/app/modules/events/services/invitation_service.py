@@ -1,47 +1,47 @@
-import string
 import secrets
+import string
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
-from datetime import datetime, timedelta, UTC
-from sqlmodel import Session
+
 from app.core.config import get_settings
-from app.core.errors import ForbiddenError
 from app.modules.events.models.event_invitation import EventInvitation
+from app.modules.events.repositories.event_repository import EventRepository
 from app.modules.events.repositories.invitation_repository import InvitationRepository
-from app.modules.events.services.event_service import EventService
+from app.modules.events.repositories.member_repository import MemberRepository
+from app.modules.events.repositories.unit_of_work import EventUnitOfWork
+from app.modules.events.services.event_authorization_service import EventAuthorizationService
+
 
 class InvitationService:
-    def __init__(self, session: Session):
-        self.session = session
-        self.invitation_repo = InvitationRepository(session)
-        self.event_service = EventService(session)
-
-    def _generate_token(self) -> str:
-        alphabet = string.ascii_letters + string.digits
-        return ''.join(secrets.choice(alphabet) for _ in range(6))
+    def __init__(
+        self,
+        events: EventRepository,
+        members: MemberRepository,
+        invitations: InvitationRepository,
+        uow: EventUnitOfWork,
+    ):
+        self.invitations, self.uow = invitations, uow
+        self.authorization = EventAuthorizationService(events, members)
 
     def generate_invitation(self, event_id: UUID, user_id: str) -> EventInvitation:
-        # Validar permisos
-        event = self.event_service.get_event(event_id, user_id)
-        if event.user_id != user_id:
-            raise ForbiddenError("Solo el propietario puede generar invitaciones.")
-
-        # Reutilizar activa si existe
-        existing = self.invitation_repo.get_active_by_event(event_id)
+        event, _ = self.authorization.require_owner(event_id, user_id)
+        self.authorization.require_open(event)
+        existing = self.invitations.get_active_by_event(event_id)
         if existing:
             return existing
-
-        # Crear nueva
-        settings = get_settings()
-        expires_at = datetime.now(UTC) + timedelta(days=settings.invitation_expire_days)
-        
-        # Opcional: garantizar que el token no colisione
-        token = self._generate_token()
-        while self.invitation_repo.get_by_token(token) is not None:
-            token = self._generate_token()
-
+        alphabet = string.ascii_letters + string.digits
+        token = "".join(secrets.choice(alphabet) for _ in range(6))
+        while self.invitations.get_by_token(token):
+            token = "".join(secrets.choice(alphabet) for _ in range(6))
         invitation = EventInvitation(
             event_id=event_id,
             token_hash=token,
-            expires_at=expires_at
+            expires_at=datetime.now(UTC) + timedelta(days=get_settings().invitation_expire_days),
         )
-        return self.invitation_repo.create(invitation)
+        try:
+            created = self.invitations.create(invitation)
+            self.uow.commit()
+            return created
+        except Exception:
+            self.uow.rollback()
+            raise

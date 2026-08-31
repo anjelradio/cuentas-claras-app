@@ -1,29 +1,36 @@
-export interface EventDetail {
+import type { EventDetail as EventDetailSchema, EventMemberInfo as EventMemberInfoSchema, EventRead as EventReadSchema, EventSummary as EventSummarySchema } from "../_schemas/event-api-schemas";
+
+export interface EventDetail extends EventDetailSchema {
   id: string;
   name: string;
-  description?: string;
+  description?: string | null;
   icon: string;
   starts_at: string;
+  ends_at: string;
   status: 'open' | 'closed';
   user_id: string; // The owner
-  owner_name?: string;
+  owner_name?: string | null;
   is_owner: boolean;
 }
 
-export interface EventSummary {
+export interface EventSummary extends EventSummarySchema {
   id: string;
   name: string;
-  description?: string;
+  description?: string | null;
   icon: string;
   starts_at: string;
+  ends_at: string;
   status: 'open' | 'closed';
+  member_count: number;
 }
 
-export interface EventMemberInfo {
+export type EventRead = EventReadSchema
+
+export interface EventMemberInfo extends EventMemberInfoSchema {
   user_id: string;
   name: string;
   email: string;
-  image?: string;
+  image?: string | null;
   role: 'owner' | 'member';
   joined_at: string; 
 }
@@ -40,6 +47,7 @@ export interface EventCreatePayload {
   description?: string;
   icon: string;
   starts_at: string;
+  ends_at: string;
 }
 
 export interface EventUpdatePayload {
@@ -47,5 +55,6 @@ export interface EventUpdatePayload {
   description?: string;
   icon?: string;
   starts_at?: string;
+  ends_at?: string;
   status?: 'open' | 'closed';
 }
