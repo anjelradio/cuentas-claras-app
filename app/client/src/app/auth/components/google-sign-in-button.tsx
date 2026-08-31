@@ -1,9 +1,11 @@
 "use client"
 
+import { useSearchParams } from "next/navigation"
 import { useState } from "react"
 
 import { getAuthErrorMessage } from "@/lib/auth-errors"
 import { authClient } from "@/lib/auth-client"
+import { buildJoinPath, buildLoginPath } from "@/lib/auth-redirect"
 import { toast } from "sonner"
 
 function GoogleIcon() {
@@ -32,13 +34,20 @@ function GoogleIcon() {
 /** Inicia el único flujo social permitido: Google. */
 export function GoogleSignInButton() {
   const [isPending, setIsPending] = useState(false)
+  const searchParams = useSearchParams()
 
   async function handleGoogleSignIn() {
     setIsPending(true)
+
+    const invitationToken = searchParams.get("redirect")
+    const callbackURL = buildJoinPath(invitationToken) ?? "/my-events"
+    // Better Auth agrega el código de error real al completar el callback.
+    const errorCallbackURL = buildLoginPath(invitationToken)
+
     const result = await authClient.signIn.social({ 
       provider: "google", 
-      callbackURL: "/",
-      errorCallbackURL: "/auth/login?error=access_denied"
+      callbackURL,
+      errorCallbackURL,
     })
     setIsPending(false)
 

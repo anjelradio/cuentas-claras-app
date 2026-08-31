@@ -25,6 +25,23 @@ class AuthorizationError(ApplicationError):
     code = "FORBIDDEN"
     message = "No tienes permiso para realizar esta operación."
 
+ForbiddenError = AuthorizationError
+
 
 class InfrastructureError(ApplicationError):
     """Uniforma fallos de infraestructura sin trasladar su detalle al cliente."""
+
+class NotFoundError(ApplicationError):
+    """Indica que el recurso solicitado no existe o fue eliminado lógicamente."""
+
+    status_code = 404
+    code = "NOT_FOUND"
+    message = "El recurso no fue encontrado."
+
+class ValidationError(ApplicationError):
+    """Indica que hubo un problema de validación de negocio."""
+
+    status_code = 400
+    code = "BAD_REQUEST"
+    message = "Error de validación."
+

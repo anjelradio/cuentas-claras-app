@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     auth_jwks_url: str = "https://auth.example.test/api/auth/jwks"
     auth_jwt_issuer: str = "http://localhost:3000"
     auth_jwt_audience: str | None = None
+    invitation_expire_days: int = 10
 
     @field_validator("cors_origins", mode="before")
     @classmethod

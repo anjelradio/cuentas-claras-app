@@ -12,6 +12,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { getAuthErrorMessage } from "@/lib/auth-errors"
 import { authClient } from "@/lib/auth-client"
+import { buildJoinPath, buildLoginPath } from "@/lib/auth-redirect"
 
 /** Inicia sesión y orienta al usuario cuando aún debe verificar su correo. */
 export function LoginForm() {
@@ -23,8 +24,7 @@ export function LoginForm() {
   useEffect(() => {
     if (searchParams.get("error") === "access_denied") {
       toast.error("El acceso con Google fue cancelado o denegado.", { id: "google-access-denied" })
-      // Clean up the URL
-      router.replace("/auth/login")
+      router.replace(buildLoginPath(searchParams.get("redirect")))
     }
   }, [searchParams, router])
 
@@ -53,7 +53,12 @@ export function LoginForm() {
       return
     }
 
-    router.push("/")
+    const joinPath = buildJoinPath(searchParams.get("redirect"))
+    if (joinPath) {
+      router.push(joinPath)
+    } else {
+      router.push("/home")
+    }
   }
 
   return (

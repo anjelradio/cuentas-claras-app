@@ -107,3 +107,19 @@ class JwksVerifier:
             options=options,
         )
         return dict(claims)
+
+from fastapi import Depends
+from app.core.config import get_settings
+
+def get_jwks_verifier(settings: Settings = Depends(get_settings)) -> JwksVerifier:
+    # Retorna un JWKS verifier, idealmente cacheado a nivel global.
+    # Por simplicidad aquí lo instanciamos con settings si no existiese, pero podríamos usar un singletón.
+    # get_settings usa lru_cache así que no es muy costoso leerlo.
+    return JwksVerifier(settings)
+
+def get_current_user(
+    token: str = Depends(get_bearer_token),
+    verifier: JwksVerifier = Depends(get_jwks_verifier)
+) -> str:
+    identity = verifier.verify(token)
+    return identity.user_id

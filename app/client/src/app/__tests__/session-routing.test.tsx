@@ -13,9 +13,26 @@ describe("protección de rutas", () => {
     expect(response.headers.get("location")).toBe("http://localhost:3000/auth/login")
   })
 
+  it("conserva el token de invitación al enviar una visita anónima a login", () => {
+    const response = proxy(new NextRequest("http://localhost:3000/join?redirect=invite-token"))
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/auth/login?redirect=invite-token",
+    )
+  })
+
   it("redirige una sesión existente fuera de auth", () => {
     getSessionCookie.mockReturnValueOnce("session")
     const response = proxy(new NextRequest("http://localhost:3000/auth/login"))
     expect(response.headers.get("location")).toBe("http://localhost:3000/")
+  })
+
+  it("reanuda la invitación cuando la sesión ya existe en la ruta de login", () => {
+    getSessionCookie.mockReturnValueOnce("session")
+    const response = proxy(new NextRequest("http://localhost:3000/auth/login?redirect=invite-token"))
+
+    expect(response.headers.get("location")).toBe(
+      "http://localhost:3000/join?redirect=invite-token",
+    )
   })
 })

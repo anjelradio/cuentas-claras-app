@@ -9,3 +9,15 @@ build/
 # Artefactos y referencias locales del proyecto
 /design/
 /site/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+env.bak/
+venv.bak/

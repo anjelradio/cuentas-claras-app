@@ -7,6 +7,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.api.health import router as health_router
 from app.core.config import Settings, get_settings
+import app.db.models  # Preload SQLModel registry
 from app.core.errors import ApplicationError
 from app.core.exception_handlers import (
     handle_application_error,
@@ -32,6 +33,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.add_exception_handler(StarletteHTTPException, handle_http_exception)
     application.add_exception_handler(Exception, handle_unexpected_error)
     application.include_router(health_router)
+    
+    from app.modules.events.routers.event_router import router as event_router
+    application.include_router(event_router)
+    
     return application
 
 
