@@ -4,7 +4,7 @@ import { RecentActivitiesCard } from "./_components/recent-activities-card"
 import { RecentExpensesCard } from "./_components/recent-expenses-card"
 import { getCachedEventDetail, getCachedMyQr } from "../_services/server-event-api"
 import { listEventActivities } from "../_services/activity"
-import { EXPENSES_DEMO } from "@/app/expenses/_types/expense-demo"
+import { getCachedEventExpenses } from "@/app/expenses/_services/server-expense-api"
 import { formatEventDate } from "../_lib/format-event-date"
 import { STATISTICS_DEMO } from "../_demo/event-home-demo"
 
@@ -15,10 +15,11 @@ interface EventHomePageProps {
 export default async function EventHomePage({ params }: EventHomePageProps) {
   const { eventId } = await params
   
-  const [event, qrImage, activitiesData] = await Promise.all([
+  const [event, qrImage, activitiesData, expensesData] = await Promise.all([
     getCachedEventDetail(eventId), 
     getCachedMyQr(eventId),
-    listEventActivities(eventId, 3, 0).catch(() => ({ items: [] }))
+    listEventActivities(eventId, 3, 0).catch(() => ({ items: [] })),
+    getCachedEventExpenses(eventId, "all").catch(() => []),
   ])
 
   // Transform EventDetail into EventView for the components
@@ -32,16 +33,19 @@ export default async function EventHomePage({ params }: EventHomePageProps) {
   }
   
   const recentActivities = activitiesData.items
-  const recentExpenses = EXPENSES_DEMO.slice(0, 3).map((expense) => ({
+  const recentExpenses = expensesData.slice(0, 3).map((expense) => ({
     id: expense.id,
     description: expense.description ?? expense.name,
-    amount: Number(expense.amount.replace(/[^0-9.]/g, "")),
-    date: expense.dateInput,
+    amount: Number(expense.amount),
+    date: expense.expense_date,
     category: expense.category,
     title: expense.name,
-    payer: expense.payer,
-    amountLabel: expense.amount,
-    dateLabel: expense.date,
+    payer: expense.paid_by_member_name,
+    amountLabel: `Bs. ${Number(expense.amount).toFixed(2)}`,
+    dateLabel: new Date(expense.expense_date).toLocaleDateString("es-BO", {
+      day: "numeric",
+      month: "short",
+    }),
   }))
 
   return (

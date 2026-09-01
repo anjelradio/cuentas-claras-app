@@ -2,6 +2,7 @@ from uuid import UUID
 
 from app.core.config import get_settings
 from app.core.errors import NotFoundError, ValidationError
+from app.modules.activity.services.activity import ActivityService
 from app.modules.events.integrations.cloudinary_storage import CloudinaryStorage
 from app.modules.events.models.enums import MemberStatus
 from app.modules.events.models.event_member import EventMember
@@ -14,8 +15,6 @@ from app.modules.events.repositories.unit_of_work import EventUnitOfWork
 from app.modules.events.services.event_authorization_service import EventAuthorizationService
 from app.modules.events.services.qr_cleanup_service import QrCleanupService
 
-
-from app.modules.activity.services.activity import ActivityService
 
 class MemberService:
     def __init__(
@@ -58,7 +57,7 @@ class MemberService:
                 self.members.create(
                     EventMember(event_id=event.id, user_id=user_id, status=MemberStatus.ACTIVE)
                 )
-                
+
             if self.activity_service:
                 actor_name = self.events.owner_name(user_id) or "Usuario"
                 self.activity_service.log_activity(
@@ -66,9 +65,9 @@ class MemberService:
                     actor_id=user_id,
                     actor_name=actor_name,
                     action_type="member_joined",
-                    description=f'{actor_name} se unió al evento.'
+                    description=f"{actor_name} se unió al evento.",
                 )
-                
+
             self.uow.commit()
         except Exception:
             self.uow.rollback()
@@ -90,7 +89,7 @@ class MemberService:
                 self.cleanups.create(
                     QrAssetCleanup(event_member_id=member.id, public_id=public_id, reason="leave")
                 )
-                
+
             if self.activity_service:
                 actor_name = self.events.owner_name(user_id) or "Usuario"
                 self.activity_service.log_activity(
@@ -98,9 +97,9 @@ class MemberService:
                     actor_id=user_id,
                     actor_name=actor_name,
                     action_type="member_left",
-                    description=f'{actor_name} abandonó el evento.'
+                    description=f"{actor_name} abandonó el evento.",
                 )
-                
+
             self.uow.commit()
             if public_id:
                 try:
@@ -125,7 +124,7 @@ class MemberService:
         try:
             member.status = MemberStatus.REMOVED
             self.members.update(member)
-            
+
             if self.activity_service:
                 actor_name = self.events.owner_name(owner_id) or "Usuario"
                 target_name = self.events.owner_name(member_user_id) or "Usuario"
@@ -134,11 +133,11 @@ class MemberService:
                     actor_id=owner_id,
                     actor_name=actor_name,
                     action_type="member_removed",
-                    description=f'{actor_name} expulsó a {target_name}.',
+                    description=f"{actor_name} expulsó a {target_name}.",
                     target_id=member_user_id,
-                    target_name=target_name
+                    target_name=target_name,
                 )
-                
+
             self.uow.commit()
         except Exception:
             self.uow.rollback()
@@ -148,6 +147,7 @@ class MemberService:
         event, _ = self.authorization.require_active_member(event_id, user_id)
         return [
             {
+                "id": member.id,
                 "user_id": user.id,
                 "name": user.name,
                 "email": user.email,

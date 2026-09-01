@@ -1,14 +1,28 @@
+import { getCachedEventMembers } from "@/app/(event)/_services/server-event-api"
 import { ExpenseForm } from "@/app/expenses/_components/expense-form"
-import { getExpenseForDisplay } from "@/app/expenses/_types/expense-demo"
+import { getCachedExpenseDetail } from "@/app/expenses/_services/server-expense-api"
 
 interface EditExpensePageProps {
   params: Promise<{ expenseId: string }>
 }
 
-/** Presenta el mismo formulario de gastos en modo edición con datos estáticos. */
+/** Presenta el formulario de gastos en modo edición con los datos persistidos y miembros reales. */
 export default async function EditExpensePage({ params }: EditExpensePageProps) {
   const { expenseId } = await params
-  const expense = getExpenseForDisplay(expenseId)
+  const expense = await getCachedExpenseDetail(expenseId)
+  const members = await getCachedEventMembers(expense.event_id).catch(() => [])
 
-  return <ExpenseForm eventId={expense.eventId} mode="edit" expense={expense} />
+  const memberOptions = members.map((m) => ({
+    id: m.id || m.user_id,
+    name: m.name,
+  }))
+
+  return (
+    <ExpenseForm
+      eventId={expense.event_id}
+      mode="edit"
+      expense={expense}
+      members={memberOptions}
+    />
+  )
 }

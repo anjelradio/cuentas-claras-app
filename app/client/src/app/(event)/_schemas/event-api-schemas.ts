@@ -14,8 +14,13 @@ export const eventDetailSchema = eventReadSchema.extend({
   user_id: z.string(), owner_name: z.string().nullable().optional(), is_owner: z.boolean(),
 })
 export const eventMemberSchema = z.object({
-  user_id: z.string(), name: z.string(), email: z.string(), image: z.string().nullable().optional(),
-  role: z.enum(["owner", "member"]), joined_at: z.string(),
+  id: z.string().optional(),
+  user_id: z.string(),
+  name: z.string(),
+  email: z.string(),
+  image: z.string().nullable().optional(),
+  role: z.enum(["owner", "member"]),
+  joined_at: z.string(),
 })
 export const myQrSchema = z.object({ image_url: z.string().url().nullable() })
 export const operationSchema = z.object({ status: z.literal("ok") })

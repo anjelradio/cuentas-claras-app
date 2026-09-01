@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
@@ -8,6 +9,7 @@ class JoinEventRequest(BaseModel):
 
 
 class MemberRead(BaseModel):
+    id: UUID | None = None
     user_id: str
     name: str
     email: str

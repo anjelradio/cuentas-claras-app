@@ -54,7 +54,7 @@ async def handle_request_validation_error(_: Request, error: Exception) -> JSONR
     """Mantiene detalles de validación útiles sin incluir el input original."""
     if not isinstance(error, RequestValidationError):
         return await handle_unexpected_error(_, error)
-        
+
     # If the validation error is because of an invalid UUID in the path, it should be 404
     for err in error.errors():
         if err.get("type") == "uuid_parsing" and "path" in err.get("loc", []):
@@ -63,7 +63,7 @@ async def handle_request_validation_error(_: Request, error: Exception) -> JSONR
                 code="NOT_FOUND",
                 message="El recurso solicitado no existe.",
             )
-            
+
     return public_error_response(
         status_code=422,
         code="VALIDATION_ERROR",

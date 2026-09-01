@@ -1,16 +1,10 @@
 import { describe, expect, it } from "vitest"
+import { EXPENSE_CATEGORIES } from "./expense"
 
-import { getExpenseById, getExpensesByFilter } from "./expense-demo"
-
-describe("datos demo de gastos", () => {
-  it("encuentra un gasto demo por su identificador", () => {
-    expect(getExpenseById("cena-puerto")?.name).toBe("Cena en el puerto")
-    expect(getExpenseById("inexistente")).toBeUndefined()
-  })
-
-  it("aplica filtros locales para gastos propios, ajenos y todos", () => {
-    expect(getExpensesByFilter("demo-event", "all")).toHaveLength(4)
-    expect(getExpensesByFilter("demo-event", "mine")).toHaveLength(1)
-    expect(getExpensesByFilter("demo-event", "others")).toHaveLength(3)
+describe("categorías de gastos", () => {
+  it("contiene las 6 categorías canónicas con etiquetas y emojis", () => {
+    expect(EXPENSE_CATEGORIES).toHaveLength(6)
+    const ids = EXPENSE_CATEGORIES.map((c) => c.id)
+    expect(ids).toEqual(["food", "lodging", "transport", "shopping", "entertainment", "other"])
   })
 })

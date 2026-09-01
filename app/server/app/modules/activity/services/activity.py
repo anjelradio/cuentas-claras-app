@@ -1,11 +1,11 @@
 from sqlmodel import Session
-from typing import Optional, List, Tuple
-from app.modules.activity.repositories.activity import ActivityRepository
-from app.modules.activity.models.activity import ActivityLog
 
-from app.modules.events.services.event_authorization_service import EventAuthorizationService
+from app.modules.activity.models.activity import ActivityLog
+from app.modules.activity.repositories.activity import ActivityRepository
 from app.modules.events.repositories.event_repository import EventRepository
 from app.modules.events.repositories.member_repository import MemberRepository
+from app.modules.events.services.event_authorization_service import EventAuthorizationService
+
 
 class ActivityService:
     def __init__(self, session: Session):
@@ -14,7 +14,7 @@ class ActivityService:
         self.events = EventRepository(session)
         self.members = MemberRepository(session)
         self.authorization = EventAuthorizationService(self.events, self.members)
-        
+
     def log_activity(
         self,
         event_id: str,
@@ -22,8 +22,8 @@ class ActivityService:
         actor_name: str,
         action_type: str,
         description: str,
-        target_id: Optional[str] = None,
-        target_name: Optional[str] = None,
+        target_id: str | None = None,
+        target_name: str | None = None,
     ) -> ActivityLog:
         """
         Creates and persists a new activity log entry.
@@ -41,16 +41,13 @@ class ActivityService:
         return self.repository.create_activity(activity)
 
     def get_event_activities(
-        self,
-        event_id: str,
-        user_id: str,
-        limit: int = 20,
-        offset: int = 0
-    ) -> Tuple[List[ActivityLog], int]:
+        self, event_id: str, user_id: str, limit: int = 20, offset: int = 0
+    ) -> tuple[list[ActivityLog], int]:
         """
         Gets paginated activities for an event after checking authorization.
         """
         from app.core.errors import ForbiddenError, NotFoundError
+
         print(f"[DEBUG] Fetching activities for event {event_id} by user {user_id}")
         try:
             self.authorization.require_active_member(event_id, user_id)

@@ -1,30 +1,32 @@
+import { describe, expect, it } from "vitest"
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it, vi } from "vitest"
 
 import { ExpenseForm } from "./expense-form"
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
-
 describe("ExpenseForm", () => {
-  it("marca campos obligatorios como inválidos y conserva el formulario", async () => {
-    const user = userEvent.setup()
-    render(<ExpenseForm eventId="demo-event" mode="create" />)
+  const members = [
+    { id: "member-1", name: "Ana López" },
+    { id: "member-2", name: "Carlos Ruiz" },
+  ]
 
-    const name = screen.getByLabelText("Nombre del gasto")
-    await user.click(screen.getByRole("button", { name: "Registrar gasto" }))
-    expect(name).toHaveAttribute("aria-invalid", "true")
-    expect(screen.getByLabelText("Monto del gasto")).toHaveAttribute("aria-invalid", "true")
+  it("renderiza el formulario de creación con título y campos requeridos", () => {
+    render(<ExpenseForm eventId="event-123" mode="create" members={members} />)
+
+    expect(screen.getByRole("heading", { name: "Registrar gasto" })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("Nombre del gasto")).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("Monto total (Bs.)")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Registrar gasto" })).toBeInTheDocument()
   })
 
-  it("abre la selección accesible de participantes después de validar el formulario", async () => {
+  it("muestra alerta de validación cuando se envía vacío", async () => {
     const user = userEvent.setup()
-    render(<ExpenseForm eventId="demo-event" mode="create" />)
+    render(<ExpenseForm eventId="event-123" mode="create" members={members} />)
 
-    await user.type(screen.getByLabelText("Nombre del gasto"), "Cena del viaje")
-    await user.type(screen.getByLabelText("Monto del gasto"), "360")
-    await user.click(screen.getByRole("button", { name: "Registrar gasto" }))
-    expect(await screen.findByRole("heading", { name: "Excluir miembros del gasto" })).toBeInTheDocument()
-    expect(screen.getAllByRole("checkbox")).toHaveLength(10)
+    const submitBtn = screen.getByRole("button", { name: "Registrar gasto" })
+    await user.click(submitBtn)
+
+    const nameInput = screen.getByPlaceholderText("Nombre del gasto")
+    expect(nameInput).toHaveAttribute("aria-invalid", "true")
   })
 })

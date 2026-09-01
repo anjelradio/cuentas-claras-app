@@ -58,11 +58,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.add_exception_handler(Exception, handle_unexpected_error)
     application.include_router(health_router)
 
-    from app.modules.events.routers.event_router import router as event_router
     from app.modules.activity.routers.activity import router as activity_router
+    from app.modules.events.routers.event_router import router as event_router
+    from app.modules.expenses.routers.expense_router import router as expense_router
 
     application.include_router(event_router)
     application.include_router(activity_router)
+    application.include_router(expense_router)
 
     return application
 

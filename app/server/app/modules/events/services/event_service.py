@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from app.core.errors import ValidationError
+from app.modules.activity.services.activity import ActivityService
 from app.modules.events.models.enums import EventStatus, MemberStatus
 from app.modules.events.models.event import Event
 from app.modules.events.models.event_member import EventMember
@@ -12,10 +13,14 @@ from app.modules.events.schemas.event_schemas import EventCreateRequest, EventUp
 from app.modules.events.services.event_authorization_service import EventAuthorizationService
 
 
-from app.modules.activity.services.activity import ActivityService
-
 class EventService:
-    def __init__(self, events: EventRepository, members: MemberRepository, uow: EventUnitOfWork, activity_service: ActivityService = None):
+    def __init__(
+        self,
+        events: EventRepository,
+        members: MemberRepository,
+        uow: EventUnitOfWork,
+        activity_service: ActivityService = None,
+    ):
         self.events = events
         self.members = members
         self.uow = uow
@@ -29,7 +34,7 @@ class EventService:
             self.members.create(
                 EventMember(event_id=event.id, user_id=user_id, status=MemberStatus.ACTIVE)
             )
-            
+
             if self.activity_service:
                 actor_name = self.events.owner_name(user_id) or "Usuario"
                 self.activity_service.log_activity(
@@ -38,9 +43,9 @@ class EventService:
                     actor_name=actor_name,
                     action_type="event_created",
                     description=f'{actor_name} creó el evento "{event.name}".',
-                    target_name=event.name
+                    target_name=event.name,
                 )
-                
+
             self.uow.commit()
             return event
         except Exception:
@@ -79,7 +84,7 @@ class EventService:
             )
         for field, value in updates.items():
             setattr(event, field, value)
-            
+
         action_type = "event_updated"
         action_desc = f'Se actualizaron los datos del evento "{event.name}".'
         if updates.get("status") == EventStatus.CLOSED:
@@ -90,10 +95,10 @@ class EventService:
             event.closed_at = None
             action_type = "event_updated"
             action_desc = f'Se reabrió el evento "{event.name}".'
-            
+
         try:
             updated = self.events.update(event)
-            
+
             if self.activity_service:
                 actor_name = self.events.owner_name(user_id) or "Usuario"
                 self.activity_service.log_activity(
@@ -102,9 +107,9 @@ class EventService:
                     actor_name=actor_name,
                     action_type=action_type,
                     description=action_desc,
-                    target_name=event.name
+                    target_name=event.name,
                 )
-                
+
             self.uow.commit()
             return updated
         except Exception:
@@ -139,7 +144,7 @@ class EventService:
         try:
             event.user_id = new_owner_id
             self.events.update(event)
-            
+
             if self.activity_service:
                 actor_name = self.events.owner_name(user_id) or "Usuario"
                 target_name = self.events.owner_name(new_owner_id) or "Usuario"
@@ -148,11 +153,11 @@ class EventService:
                     actor_id=user_id,
                     actor_name=actor_name,
                     action_type="owner_transferred",
-                    description=f'{actor_name} transfirió la administración a {target_name}.',
+                    description=f"{actor_name} transfirió la administración a {target_name}.",
                     target_id=new_owner_id,
-                    target_name=target_name
+                    target_name=target_name,
                 )
-                
+
             self.uow.commit()
         except Exception:
             self.uow.rollback()

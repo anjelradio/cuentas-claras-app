@@ -3,20 +3,25 @@
 Revision ID: b1f2c3d4e5f6
 Revises: aa1a6c61b65a
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 import sqlmodel
+
 from alembic import op
 
 revision: str = "b1f2c3d4e5f6"
-down_revision: Union[str, Sequence[str], None] = "aa1a6c61b65a"
+down_revision: str | Sequence[str] | None = "aa1a6c61b65a"
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("eventmember", sa.Column("qr_image_public_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True))
+    op.add_column(
+        "eventmember",
+        sa.Column("qr_image_public_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+    )
     op.create_table(
         "qrassetcleanup",
         sa.Column("id", sa.Uuid(), nullable=False),

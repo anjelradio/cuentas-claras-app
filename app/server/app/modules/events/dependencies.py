@@ -29,10 +29,12 @@ def repositories(session: SessionDep):
 
 from app.modules.activity.services.activity import ActivityService
 
+
 def get_event_service(session: SessionDep) -> EventService:
     events, members, _, _, uow = repositories(session)
     activity = ActivityService(session)
     return EventService(events, members, uow, activity_service=activity)
+
 
 def get_member_service(session: SessionDep) -> MemberService:
     events, members, invitations, cleanups, uow = repositories(session)

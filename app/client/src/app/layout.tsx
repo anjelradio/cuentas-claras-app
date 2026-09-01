@@ -27,7 +27,11 @@ export const metadata: Metadata = {
   description: "Fundación visual de Cuentas Claras",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="es" className={`${headline.variable} ${body.variable} ${label.variable} theme-stitch`}>
       <body 
