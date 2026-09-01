@@ -12,16 +12,22 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { QuickActionButton } from "@/components/custom/quick-action-button"
-import { ReceiptUploadPlaceholder } from "@/components/custom/receipt-upload-placeholder"
+import { ReceiptUploadStep } from "@/components/custom/receipt-upload-step"
 import type { EventSummary } from "../../(event)/_types/event"
 
 export function AddExpenseSheet({ activeEvents = [] }: { activeEvents?: EventSummary[] }) {
   const [open, setOpen] = React.useState(false)
   const [step, setStep] = React.useState<"select" | "upload">("select")
+  const [selectedEventId, setSelectedEventId] = React.useState<string | null>(null)
+  const [selectedEventName, setSelectedEventName] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (!open) {
-      setTimeout(() => setStep("select"), 300)
+      setTimeout(() => {
+        setStep("select")
+        setSelectedEventId(null)
+        setSelectedEventName(null)
+      }, 300)
     }
   }, [open])
 
@@ -36,7 +42,7 @@ export function AddExpenseSheet({ activeEvents = [] }: { activeEvents?: EventSum
         />
       } />
 
-      <SheetContent showCloseButton={false} side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-[32px] border-border bg-overlay-surface p-6 text-headline">
+      <SheetContent showCloseButton={false} side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-[32px] border-border bg-overlay-surface p-6 text-headline sm:max-w-xl sm:mx-auto">
         <div className="mb-6 flex justify-center" aria-hidden="true">
           <div className="h-1.5 w-12 rounded-full bg-headline/20" />
         </div>
@@ -57,7 +63,11 @@ export function AddExpenseSheet({ activeEvents = [] }: { activeEvents?: EventSum
                 <button
                   key={event.id}
                   type="button"
-                  onClick={() => setStep("upload")}
+                  onClick={() => {
+                    setSelectedEventId(event.id)
+                    setSelectedEventName(event.name)
+                    setStep("upload")
+                  }}
                   className="flex items-center gap-4 rounded-xl border border-transparent p-3 text-left transition-colors hover:border-border hover:bg-headline/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <span className="flex size-12 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-2xl" aria-hidden="true">
@@ -73,19 +83,30 @@ export function AddExpenseSheet({ activeEvents = [] }: { activeEvents?: EventSum
           </div>
         )}
 
-        {step === "upload" && (
+        {step === "upload" && selectedEventId && (
           <div className="flex h-full flex-col animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="mb-8 flex items-center justify-between">
+            <div className="mb-6 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setStep("select")} className="-ml-2 rounded-full p-2 transition-colors hover:bg-headline/10" aria-label="Volver a seleccionar evento">
+                <button
+                  type="button"
+                  onClick={() => setStep("select")}
+                  className="-ml-2 rounded-full p-2 transition-colors hover:bg-headline/10"
+                  aria-label="Volver a seleccionar evento"
+                >
                   <ArrowLeft className="size-5" aria-hidden="true" />
                 </button>
-                <h3 className="text-2xl font-semibold text-headline">Adjuntar comprobante</h3>
+                <div>
+                  <h3 className="text-xl font-semibold text-headline">Adjuntar comprobante</h3>
+                  <p className="text-xs text-muted-foreground">{selectedEventName}</p>
+                </div>
               </div>
               <SheetClose render={<button className="p-1 text-muted-foreground transition-colors hover:text-headline" aria-label="Cerrar"><X className="size-6" /></button>} />
             </div>
 
-            <ReceiptUploadPlaceholder onContinue={() => setOpen(false)} />
+            <ReceiptUploadStep
+              eventId={selectedEventId}
+              onSuccess={() => setOpen(false)}
+            />
           </div>
         )}
       </SheetContent>

@@ -1,9 +1,16 @@
-import { type LucideIcon, Wallet, Pencil, Plus, Trash2, UserPlus, UserMinus, ShieldAlert, ArrowRightLeft, CalendarCheck } from "lucide-react"
+import { type LucideIcon, Wallet, Pencil, Plus, Trash2, UserPlus, UserMinus, ShieldAlert, ArrowRightLeft, CalendarCheck, Sparkles, Activity } from "lucide-react"
 import { type ActivityLogEntry, type ActivityType } from "../../../_types/activity-types"
 import { cn } from "@/lib/utils"
 
 interface ActivityItemProps {
   activity: ActivityLogEntry
+}
+
+export const DEFAULT_ACTIVITY_CONFIG = {
+  icon: Activity,
+  label: "Actividad",
+  bgClass: "bg-primary/20",
+  textClass: "text-primary",
 }
 
 export const TYPE_CONFIG: Record<ActivityType, { icon: LucideIcon; label: string; bgClass: string; textClass: string }> = {
@@ -17,13 +24,14 @@ export const TYPE_CONFIG: Record<ActivityType, { icon: LucideIcon; label: string
   expense_created: { icon: Plus, label: "Gasto registrado", bgClass: "bg-primary/20", textClass: "text-primary" },
   expense_updated: { icon: Pencil, label: "Gasto editado", bgClass: "bg-tertiary/20", textClass: "text-tertiary" },
   expense_voided: { icon: Trash2, label: "Gasto anulado", bgClass: "bg-error/20", textClass: "text-error" },
+  expense_receipt_analyzed: { icon: Sparkles, label: "Comprobante analizado", bgClass: "bg-primary/20", textClass: "text-primary" },
   payment_declared: { icon: Wallet, label: "Pago declarado", bgClass: "bg-action-orange/20", textClass: "text-action-orange" },
   payment_confirmed: { icon: Wallet, label: "Pago verificado", bgClass: "bg-success/20", textClass: "text-success" },
   payment_rejected: { icon: ShieldAlert, label: "Pago rechazado", bgClass: "bg-error/20", textClass: "text-error" },
 }
 
 export function ActivityItem({ activity }: ActivityItemProps) {
-  const config = TYPE_CONFIG[activity.type]
+  const config = TYPE_CONFIG[activity.type] || DEFAULT_ACTIVITY_CONFIG
   const Icon = config.icon
 
   return (

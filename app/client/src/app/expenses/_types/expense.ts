@@ -12,6 +12,7 @@ import {
   expenseSplitTypeEnum,
   expenseSummarySchema,
   expenseUpdateRequestSchema,
+  receiptAnalysisResponseSchema,
 } from "../_schemas/expense-api-schemas";
 
 export type ExpenseCategory = z.infer<typeof expenseCategoryEnum>;
@@ -26,6 +27,7 @@ export type ExpenseSplit = z.infer<typeof expenseSplitReadSchema>;
 export type ExpenseDetail = z.infer<typeof expenseDetailSchema>;
 export type ExpenseSummary = z.infer<typeof expenseSummarySchema>;
 export type ExpenseReceipt = z.infer<typeof expenseReceiptSchema>;
+export type ReceiptAnalysisResponse = z.infer<typeof receiptAnalysisResponseSchema>;
 
 export interface ExpenseCategoryMetadata {
   id: ExpenseCategory;

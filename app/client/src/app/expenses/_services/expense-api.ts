@@ -5,6 +5,7 @@ import type {
   ExpenseReceipt,
   ExpenseSummary,
   ExpenseUpdatePayload,
+  ReceiptAnalysisResponse,
 } from "../_types/expense";
 import {
   errorSchema,
@@ -12,6 +13,7 @@ import {
   expenseReadSchema,
   expenseReceiptSchema,
   expenseSummarySchema,
+  receiptAnalysisResponseSchema,
 } from "../_schemas/expense-api-schemas";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -142,6 +144,29 @@ export const ExpenseApi = {
       body: formData,
     });
     return expenseReceiptSchema.parse(await handleResponse<unknown>(res));
+  },
+
+  async analyzeReceipt(
+    eventId: string,
+    file: File
+  ): Promise<ReceiptAnalysisResponse> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_BASE}/events/${eventId}/expenses/analyze-receipt`, {
+      method: "POST",
+      headers: await getHeaders(false),
+      body: formData,
+    });
+    return receiptAnalysisResponseSchema.parse(await handleResponse<unknown>(res));
+  },
+
+  async discardReceipt(eventId: string, publicId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/events/${eventId}/expenses/discard-receipt`, {
+      method: "POST",
+      headers: await getHeaders(true),
+      body: JSON.stringify({ public_id: publicId }),
+    });
+    await handleResponse<void>(res);
   },
 
   async deleteReceipt(expenseId: string): Promise<void> {

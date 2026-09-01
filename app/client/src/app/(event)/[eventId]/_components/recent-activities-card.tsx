@@ -3,7 +3,7 @@ import Link from "next/link"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { ActivityLogEntry } from "../../_types/activity-types"
-import { TYPE_CONFIG } from "../activity/_components/activity-item"
+import { DEFAULT_ACTIVITY_CONFIG, TYPE_CONFIG } from "../activity/_components/activity-item"
 import { cn } from "@/lib/utils"
 
 interface RecentActivitiesCardProps {
@@ -31,7 +31,7 @@ export function RecentActivitiesCard({ eventId, activities }: RecentActivitiesCa
         ) : (
           <ul className="grid gap-4" aria-label="Actividad reciente del evento">
             {activities.map((activity) => {
-              const config = TYPE_CONFIG[activity.type]
+              const config = TYPE_CONFIG[activity.type] || DEFAULT_ACTIVITY_CONFIG
               const Icon = config.icon
               return (
                 <li key={activity.id} className="-mx-2 flex items-center gap-3 rounded-xl p-2 transition-colors hover:bg-white/5">

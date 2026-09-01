@@ -22,6 +22,22 @@ class ExpenseCreateRequest(BaseModel):
     expense_date: datetime
     participant_member_ids: list[UUID] | None = None
     splits: list[ExpenseSplitRequest] | None = None
+    receipt_url: str | None = None
+
+
+class ReceiptAnalysisResponse(BaseModel):
+    image_url: str
+    receipt_public_id: str | None = None
+    is_receipt: bool
+    name: str | None = None
+    description: str | None = None
+    amount: Decimal | None = None
+    category: ExpenseCategory | None = None
+    expense_date: str | None = None
+
+
+class DiscardReceiptRequest(BaseModel):
+    public_id: str
 
 
 class ExpenseUpdateRequest(BaseModel):

@@ -21,4 +21,15 @@ describe("AddExpenseSheet", () => {
 
     expect(screen.getByText("No tienes eventos abiertos disponibles.")).toBeInTheDocument()
   })
+
+  it("avanza al paso de adjuntar comprobante al seleccionar un evento", () => {
+    render(<AddExpenseSheet activeEvents={[eventSummaryFixture]} />)
+
+    fireEvent.click(screen.getByRole("button", { name: /Registrar gasto/i }))
+    fireEvent.click(screen.getByText(eventSummaryFixture.name))
+
+    expect(screen.getByText("Adjuntar comprobante")).toBeInTheDocument()
+    expect(screen.getByText(eventSummaryFixture.name)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Analizar imagen y continuar/i })).toBeInTheDocument()
+  })
 })

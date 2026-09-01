@@ -4,11 +4,12 @@ import * as React from "react"
 import Link from "next/link"
 import { CircleDollarSign, Plus, Receipt } from "lucide-react"
 
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { EXPENSE_CATEGORIES } from "@/app/expenses/_types/expense"
 import type { ExpenseCategory, ExpenseSummary } from "@/app/expenses/_types/expense"
 import { ExpenseApi } from "@/app/expenses/_services/expense-api"
+import { ReceiptUploadSheet } from "@/app/(event)/[eventId]/_components/receipt-upload-sheet"
 
 interface ExpensesListProps {
   eventId: string
@@ -35,6 +36,7 @@ export function ExpensesList({ eventId, initialExpenses = [] }: ExpensesListProp
   const [filter, setFilter] = React.useState<ExpenseFilter>("all")
   const [expenses, setExpenses] = React.useState<ExpenseSummary[]>(initialExpenses)
   const [isLoading, setIsLoading] = React.useState(false)
+  const [isUploadSheetOpen, setIsUploadSheetOpen] = React.useState(false)
   const isFirstRender = React.useRef(true)
 
   const loadExpenses = React.useCallback(async (selectedFilter: ExpenseFilter) => {
@@ -84,16 +86,14 @@ export function ExpensesList({ eventId, initialExpenses = [] }: ExpensesListProp
           ))}
         </div>
 
-        <Link
-          href={`/expenses/event/${eventId}/create`}
-          className={cn(
-            buttonVariants({ variant: "default" }),
-            "h-10 rounded-xl bg-action-orange px-4 text-xs font-semibold text-action-orange-foreground shadow hover:bg-action-orange/90 sm:text-sm"
-          )}
+        <Button
+          type="button"
+          onClick={() => setIsUploadSheetOpen(true)}
+          className="h-10 rounded-xl bg-action-orange px-4 text-xs font-semibold text-action-orange-foreground shadow hover:bg-action-orange/90 sm:text-sm"
         >
           <Plus className="mr-1 size-4" />
           Registrar gasto
-        </Link>
+        </Button>
       </div>
 
       {isLoading ? (
@@ -171,15 +171,23 @@ export function ExpensesList({ eventId, initialExpenses = [] }: ExpensesListProp
                 Ver todos
               </Button>
             )}
-            <Link
-              href={`/expenses/event/${eventId}/create`}
-              className={cn(buttonVariants({ variant: "default" }), "rounded-xl bg-action-orange text-action-orange-foreground hover:bg-action-orange/90")}
+            <Button
+              type="button"
+              onClick={() => setIsUploadSheetOpen(true)}
+              className="rounded-xl bg-action-orange text-action-orange-foreground hover:bg-action-orange/90"
             >
               Registrar primer gasto
-            </Link>
+            </Button>
           </div>
         </div>
       )}
+
+      {/* Bottom Sheet de Carga de Comprobante/Foto */}
+      <ReceiptUploadSheet
+        eventId={eventId}
+        open={isUploadSheetOpen}
+        onOpenChange={setIsUploadSheetOpen}
+      />
     </section>
   )
 }

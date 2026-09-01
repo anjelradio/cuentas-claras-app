@@ -9,6 +9,7 @@ export type ActivityType =
   | "expense_created"
   | "expense_updated"
   | "expense_voided"
+  | "expense_receipt_analyzed"
   | "payment_declared"
   | "payment_confirmed"
   | "payment_rejected"

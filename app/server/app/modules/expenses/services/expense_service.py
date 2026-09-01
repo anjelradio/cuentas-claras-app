@@ -8,6 +8,7 @@ from app.modules.events.models.event import Event
 from app.modules.events.models.event_member import EventMember
 from app.modules.events.repositories.member_repository import MemberRepository
 from app.modules.events.services.event_authorization_service import EventAuthorizationService
+from app.modules.expenses.integrations.gemini_analyzer import GeminiReceiptAnalyzer
 from app.modules.expenses.integrations.receipt_storage import ExpenseReceiptStorage
 from app.modules.expenses.models.enums import ExpenseSplitType
 from app.modules.expenses.models.expense import Expense
@@ -23,6 +24,7 @@ from app.modules.expenses.schemas.expense_schemas import (
     ExpenseSplitRequest,
     ExpenseSummaryRead,
     ExpenseUpdateRequest,
+    ReceiptAnalysisResponse,
 )
 
 
@@ -36,6 +38,7 @@ class ExpenseService:
         member_repo: MemberRepository,
         activity_service: ActivityService | None = None,
         receipt_storage: ExpenseReceiptStorage | None = None,
+        gemini_analyzer: GeminiReceiptAnalyzer | None = None,
     ):
         self.expense_repo = expense_repo
         self.split_repo = split_repo
@@ -44,6 +47,7 @@ class ExpenseService:
         self.member_repo = member_repo
         self.activity_service = activity_service
         self.receipt_storage = receipt_storage
+        self.gemini_analyzer = gemini_analyzer
 
     @staticmethod
     def calculate_equal_splits(
@@ -160,7 +164,7 @@ class ExpenseService:
             raise ValidationError("Tipo de división de gasto no soportado.")
 
         uploaded_receipt_public_id: str | None = None
-        receipt_url: str | None = None
+        receipt_url: str | None = request.receipt_url
 
         if receipt_file is not None and self.receipt_storage is not None:
             content, content_type = receipt_file
@@ -509,65 +513,64 @@ class ExpenseService:
             self.uow.rollback()
             raise
 
-    def replace_receipt(
+    def update_receipt(
         self,
         expense_id: UUID,
         user_id: str,
         file_content: bytes,
         content_type: str | None = None,
     ) -> ExpenseReceiptRead:
-        expense = self.expense_repo.get_by_id(expense_id)
-        if expense is None:
-            raise NotFoundError("Gasto no encontrado.")
+        raise ValidationError("El comprobante de un gasto es inmutable y no puede ser modificado ni reemplazado.")
 
-        self._require_expense_editor(expense, user_id)
+    def delete_receipt(self, expense_id: UUID, user_id: str) -> None:
+        raise ValidationError("El comprobante de un gasto no puede ser eliminado.")
+
+    def analyze_receipt(
+        self,
+        event_id: UUID,
+        user_id: str,
+        file_content: bytes,
+        content_type: str | None = None,
+    ) -> ReceiptAnalysisResponse:
+        event, _ = self.auth_service.require_active_member(event_id, user_id)
+        self.auth_service.require_open(event)
+
         if self.receipt_storage is None:
             raise InfrastructureError("Almacenamiento de comprobantes no configurado.")
 
-        old_public_id = expense.receipt_public_id
         stored = self.receipt_storage.upload_receipt(
-            file_content, str(expense.event_id), content_type
+            file_content, str(event_id), content_type
         )
 
-        expense.receipt_url = stored.secure_url
-        expense.receipt_public_id = stored.public_id
+        if self.gemini_analyzer:
+            analysis = self.gemini_analyzer.analyze_image_bytes(
+                image_bytes=file_content,
+                mime_type=content_type or "image/jpeg",
+                image_url=stored.secure_url,
+                receipt_public_id=stored.public_id,
+            )
+        else:
+            analysis = ReceiptAnalysisResponse(
+                image_url=stored.secure_url,
+                receipt_public_id=stored.public_id,
+                is_receipt=False,
+            )
+
+        return analysis
+
+    def discard_temp_receipt(self, event_id: UUID, user_id: str, public_id: str) -> None:
+        event, _ = self.auth_service.require_active_member(event_id, user_id)
+        self.auth_service.require_open(event)
+
+        if self.receipt_storage is None:
+            return
+
+        expected_prefix = f"{self.receipt_storage.folder}/{event_id}"
+        if not public_id.startswith(expected_prefix):
+            return
 
         try:
-            self.expense_repo.update(expense)
-            self.uow.commit()
-            if old_public_id:
-                try:
-                    self.receipt_storage.destroy(old_public_id)
-                except Exception:
-                    pass
-            return ExpenseReceiptRead(expense_id=expense.id, receipt_url=stored.secure_url)
+            self.receipt_storage.destroy(public_id)
         except Exception:
-            self.uow.rollback()
-            try:
-                self.receipt_storage.destroy(stored.public_id)
-            except Exception:
-                pass
-            raise
+            pass
 
-    def delete_receipt(self, expense_id: UUID, user_id: str) -> None:
-        expense = self.expense_repo.get_by_id(expense_id)
-        if expense is None:
-            raise NotFoundError("Gasto no encontrado.")
-
-        self._require_expense_editor(expense, user_id)
-        old_public_id = expense.receipt_public_id
-
-        expense.receipt_url = None
-        expense.receipt_public_id = None
-
-        try:
-            self.expense_repo.update(expense)
-            self.uow.commit()
-            if old_public_id and self.receipt_storage is not None:
-                try:
-                    self.receipt_storage.destroy(old_public_id)
-                except Exception:
-                    pass
-        except Exception:
-            self.uow.rollback()
-            raise

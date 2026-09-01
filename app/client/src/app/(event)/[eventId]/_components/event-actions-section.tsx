@@ -13,13 +13,7 @@ import type { DebtSummary, EventOverlayState, EventView, InvitationOption } from
 import { EventOverlayFlows } from "./event-overlay-flows"
 import { EventApi } from "../../_services/event-api"
 import { QrSheet } from "./qr-sheet"
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetTrigger,
-} from "@/components/ui/sheet"
-import { ReceiptUploadPlaceholder } from "@/components/custom/receipt-upload-placeholder"
+import { ReceiptUploadSheet } from "./receipt-upload-sheet"
 
 /**
  * Expone las acciones principales de un evento y concentra sus overlays locales.
@@ -107,29 +101,14 @@ export function EventActionsSection({
       />
       )}
       <div className="grid grid-cols-2 gap-4">
-        <Sheet open={isExpenseOpen} onOpenChange={setIsExpenseOpen}>
-          <SheetTrigger render={
-            <QuickActionButton
-              icon={FileUp}
-              title="Registrar gasto"
-              description="Añade un nuevo gasto al grupo"
-              variant="primary-purple"
-              disabled={!isOpen}
-            />
-          } />
-          <SheetContent showCloseButton={false} side="bottom" className="max-h-[90vh] overflow-y-auto rounded-t-[32px] border-border bg-overlay-surface p-6 text-headline">
-            <div className="mb-6 flex justify-center" aria-hidden="true">
-              <div className="h-1.5 w-12 rounded-full bg-headline/20" />
-            </div>
-            <div className="flex h-full flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <div className="mb-8 flex items-center justify-between">
-                <h3 className="text-2xl font-semibold text-headline">Adjuntar comprobante</h3>
-                <SheetClose render={<button className="p-1 text-muted-foreground transition-colors hover:text-headline" aria-label="Cerrar"><X className="size-6" /></button>} />
-              </div>
-              <ReceiptUploadPlaceholder onContinue={() => setIsExpenseOpen(false)} />
-            </div>
-          </SheetContent>
-        </Sheet>
+        <QuickActionButton
+          icon={FileUp}
+          title="Registrar gasto"
+          description="Añade un nuevo gasto al grupo"
+          variant="primary-purple"
+          disabled={!isOpen}
+          onClick={() => setIsExpenseOpen(true)}
+        />
         <QuickActionButton
           icon={KeyRound}
           title="Mis deudas"
@@ -168,6 +147,7 @@ export function EventActionsSection({
         onOpenChange={setOpenOverlay}
       />
       <QrSheet eventId={event.id} imageUrl={qrImage} isOpen={isOpen} open={isQrOpen} onOpenChange={setIsQrOpen} />
+      <ReceiptUploadSheet eventId={event.id} open={isExpenseOpen} onOpenChange={setIsExpenseOpen} />
     </section>
   )
 }

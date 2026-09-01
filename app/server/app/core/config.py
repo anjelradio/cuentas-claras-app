@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     cloudinary_api_secret: str | None = None
     cloudinary_qr_folder: str = "cuentas-claras/qr"
     cloudinary_receipts_folder: str = "cuentas-claras/receipts"
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.0-flash-lite"
 
     @field_validator("cors_origins", mode="before")
     @classmethod

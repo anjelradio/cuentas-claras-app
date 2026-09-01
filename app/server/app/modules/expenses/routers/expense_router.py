@@ -7,18 +7,51 @@ from app.core.errors import ValidationError
 from app.core.security import get_current_user
 from app.modules.expenses.dependencies import get_expense_service
 from app.modules.expenses.schemas.expense_schemas import (
+    DiscardReceiptRequest,
     ExpenseCreateRequest,
     ExpenseDetailRead,
     ExpenseRead,
     ExpenseReceiptRead,
     ExpenseSummaryRead,
     ExpenseUpdateRequest,
+    ReceiptAnalysisResponse,
 )
 from app.modules.expenses.services.expense_service import ExpenseService
 
 router = APIRouter(prefix="/api", tags=["expenses"])
 UserDep = Annotated[str, Depends(get_current_user)]
 ExpenseServiceDep = Annotated[ExpenseService, Depends(get_expense_service)]
+
+
+@router.post(
+    "/events/{event_id}/expenses/analyze-receipt",
+    response_model=ReceiptAnalysisResponse,
+)
+async def analyze_receipt(
+    event_id: UUID,
+    user_id: UserDep,
+    service: ExpenseServiceDep,
+    file: Annotated[UploadFile, File()],
+):
+    content = await file.read()
+    if not content:
+        raise ValidationError("El archivo enviado está vacío.")
+    return service.analyze_receipt(
+        event_id=event_id,
+        user_id=user_id,
+        file_content=content,
+        content_type=file.content_type,
+    )
+
+
+@router.post("/events/{event_id}/expenses/discard-receipt", status_code=204)
+def discard_receipt(
+    event_id: UUID,
+    user_id: UserDep,
+    service: ExpenseServiceDep,
+    body: DiscardReceiptRequest,
+):
+    service.discard_temp_receipt(event_id, user_id, body.public_id)
 
 
 @router.post("/events/{event_id}/expenses", response_model=ExpenseRead, status_code=201)

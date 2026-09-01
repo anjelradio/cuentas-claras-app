@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { BottomSheetActionButton } from "@/components/custom/bottom-sheet-action-button"
-import { ReceiptUploadPlaceholder } from "@/components/custom/receipt-upload-placeholder"
+import { ReceiptUploadStep } from "@/components/custom/receipt-upload-step"
 import type {
   DebtSummary,
   EventOverlayState,
@@ -115,19 +115,25 @@ export function EventOverlayFlows({
       </Sheet>
 
       <Sheet open={openOverlay === "expense"} onOpenChange={(open) => !open && close()}>
-        <SheetContent side="bottom" showCloseButton={false} className="max-h-[90vh] rounded-t-[2rem] border-border bg-overlay-surface p-6 text-headline sm:max-w-2xl">
-          <SheetHeader className="flex-row items-start justify-between p-0">
+        <SheetContent side="bottom" showCloseButton={false} className="max-h-[90vh] overflow-y-auto rounded-t-[2rem] border-border bg-overlay-surface p-6 text-headline sm:max-w-xl sm:mx-auto">
+          <div className="mb-4 flex justify-center" aria-hidden="true">
+            <div className="h-1.5 w-12 rounded-full bg-headline/20" />
+          </div>
+          <SheetHeader className="mb-6 flex-row items-center justify-between p-0">
             <div>
-              <SheetTitle className="text-2xl text-headline">Registrar gasto</SheetTitle>
-              <SheetDescription className="mt-2 text-body/70">Adjunta la factura del gasto para continuar.</SheetDescription>
+              <SheetTitle className="text-xl font-bold text-headline">Registrar gasto</SheetTitle>
+              <SheetDescription className="mt-1 text-xs text-muted-foreground">
+                Adjunta la factura o foto del gasto para continuar.
+              </SheetDescription>
             </div>
             <SheetClose render={<Button variant="ghost" size="icon-sm" aria-label="Cerrar registro de gasto" />}>
               <X aria-hidden="true" />
             </SheetClose>
           </SheetHeader>
-          <div className="mt-6">
-            <ReceiptUploadPlaceholder onContinue={close} />
-          </div>
+          <ReceiptUploadStep
+            eventId={event.id}
+            onSuccess={close}
+          />
         </SheetContent>
       </Sheet>
 

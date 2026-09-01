@@ -32,6 +32,18 @@ export const expenseCreateRequestSchema = z.object({
   expense_date: z.string(),
   participant_member_ids: z.array(z.string()).optional().nullable(),
   splits: z.array(expenseSplitRequestSchema).optional().nullable(),
+  receipt_url: z.string().optional().nullable(),
+});
+
+export const receiptAnalysisResponseSchema = z.object({
+  image_url: z.string(),
+  receipt_public_id: z.string().nullable().optional(),
+  is_receipt: z.boolean(),
+  name: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  amount: z.string().or(z.number()).nullable().optional(),
+  category: expenseCategoryEnum.nullable().optional(),
+  expense_date: z.string().nullable().optional(),
 });
 
 export const expenseUpdateRequestSchema = z.object({

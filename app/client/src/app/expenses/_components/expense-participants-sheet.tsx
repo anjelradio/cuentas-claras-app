@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 export interface EventMemberOption {
   id: string
   name: string
+  image?: string | null
 }
 
 interface ExpenseParticipantsSheetProps {
@@ -25,6 +26,7 @@ interface ExpenseParticipantsSheetProps {
   exactAmounts?: Record<string, string>
   onExactAmountChange?: (memberId: string, amount: string) => void
   totalAmount?: string
+  currentUserMemberId?: string
   onConfirm: () => void
 }
 
@@ -48,6 +50,7 @@ export function ExpenseParticipantsSheet({
   exactAmounts = {},
   onExactAmountChange,
   totalAmount,
+  currentUserMemberId,
   onConfirm,
 }: ExpenseParticipantsSheetProps) {
   function toggleParticipant(memberId: string) {
@@ -117,6 +120,7 @@ export function ExpenseParticipantsSheet({
             {members.map((member) => {
               const selected = selectedMemberIds.has(member.id)
               const initials = getInitials(member.name)
+              const isCurrentUser = Boolean(currentUserMemberId && member.id === currentUserMemberId)
 
               if (splitType === "exact") {
                 return (
@@ -128,10 +132,25 @@ export function ExpenseParticipantsSheet({
                     )}
                   >
                     <span className="flex items-center gap-4">
-                      <span className="flex size-12 items-center justify-center rounded-full border border-transparent bg-secondary/20 text-sm font-semibold text-secondary">
-                        {initials}
+                      {member.image ? (
+                        <img
+                          src={member.image}
+                          alt={member.name}
+                          className="size-12 rounded-full object-cover border border-white/10 shrink-0"
+                        />
+                      ) : (
+                        <span className="flex size-12 items-center justify-center rounded-full border border-transparent bg-secondary/20 text-sm font-semibold text-secondary shrink-0">
+                          {initials}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-2">
+                        <span className="font-semibold text-headline">{member.name}</span>
+                        {isCurrentUser && (
+                          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary border border-primary/30 uppercase tracking-wider">
+                            Este eres tú
+                          </span>
+                        )}
                       </span>
-                      <span className="font-semibold text-headline">{member.name}</span>
                     </span>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">Bs.</span>
@@ -160,18 +179,40 @@ export function ExpenseParticipantsSheet({
                   )}
                 >
                   <span className="flex items-center gap-4">
-                    <span
-                      className={cn(
-                        "flex size-12 items-center justify-center rounded-full border text-sm font-semibold",
-                        selected
-                          ? "border-primary-foreground/20 bg-primary-foreground/15 text-primary-foreground"
-                          : "border-transparent bg-secondary/20 text-secondary"
+                    {member.image ? (
+                      <img
+                        src={member.image}
+                        alt={member.name}
+                        className="size-12 rounded-full object-cover border border-white/10 shrink-0"
+                      />
+                    ) : (
+                      <span
+                        className={cn(
+                          "flex size-12 items-center justify-center rounded-full border text-sm font-semibold shrink-0",
+                          selected
+                            ? "border-primary-foreground/20 bg-primary-foreground/15 text-primary-foreground"
+                            : "border-transparent bg-secondary/20 text-secondary"
+                        )}
+                      >
+                        {initials}
+                      </span>
+                    )}
+                    <span className="flex items-center gap-2">
+                      <span className={cn("font-semibold", selected ? "text-primary-foreground" : "text-headline")}>
+                        {member.name}
+                      </span>
+                      {isCurrentUser && (
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider",
+                            selected
+                              ? "bg-primary-foreground/20 text-primary-foreground border border-primary-foreground/30"
+                              : "bg-primary/15 text-primary border border-primary/30"
+                          )}
+                        >
+                          Este eres tú
+                        </span>
                       )}
-                    >
-                      {initials}
-                    </span>
-                    <span className={cn("font-semibold", selected ? "text-primary-foreground" : "text-headline")}>
-                      {member.name}
                     </span>
                   </span>
                   <span
