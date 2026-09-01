@@ -14,6 +14,8 @@ from app.modules.events.models.user_proxy import User
 from app.modules.expenses.models.enums import ExpenseCategory, ExpenseSplitType
 from app.modules.expenses.models.expense import Expense
 from app.modules.expenses.models.expense_split import ExpenseSplit
+from app.modules.payments.models.enums import PaymentMethod, PaymentStatus
+from app.modules.payments.models.payment import Payment
 
 __all__ = [
     "SQLModel",
@@ -29,4 +31,7 @@ __all__ = [
     "ExpenseSplitType",
     "Expense",
     "ExpenseSplit",
+    "PaymentMethod",
+    "PaymentStatus",
+    "Payment",
 ]

@@ -11,7 +11,7 @@ from app.modules.events.models.event_member import EventMember
 from app.modules.events.models.user_proxy import User
 from app.modules.events.repositories.event_repository import EventRepository
 from app.modules.events.repositories.member_repository import MemberRepository
-from app.modules.events.services.event_authorization_service import EventAuthorizationService
+from app.modules.events.services.expense_context_service import ExpenseContextService
 from app.modules.expenses.models.enums import ExpenseCategory, ExpenseSplitType
 from app.modules.expenses.repositories.expense_repository import ExpenseRepository
 from app.modules.expenses.repositories.expense_split_repository import ExpenseSplitRepository
@@ -56,8 +56,7 @@ def sync_setup():
         expense_repo=ExpenseRepository(session),
         split_repo=ExpenseSplitRepository(session),
         uow=ExpenseUnitOfWork(session),
-        auth_service=EventAuthorizationService(EventRepository(session), MemberRepository(session)),
-        member_repo=MemberRepository(session),
+        event_context=ExpenseContextService(EventRepository(session), MemberRepository(session)),
         activity_service=ActivityService(session),
     )
 
@@ -70,9 +69,9 @@ def sync_setup():
             amount=Decimal("90.00"),
             category=ExpenseCategory.FOOD,
             split_type=ExpenseSplitType.EQUAL,
-            paid_by_member_id=m1.id,
+            payer_participated=True,
             expense_date=now,
-            participant_member_ids=[m1.id, m2.id, m3.id],
+            participant_member_ids=[m2.id, m3.id],
         ),
     )
 
@@ -96,8 +95,8 @@ def test_split_sync_removes_and_restores_without_duplicates(sync_setup):
 
     # 1. Verificar estado inicial: 3 splits activos
     initial_splits = service.split_repo.list_active_by_expense(expense.id)
-    assert len(initial_splits) == 3
-    assert {s.member_id for s in initial_splits} == {m1.id, m2.id, m3.id}
+    assert len(initial_splits) == 2
+    assert {s.member_id for s in initial_splits} == {m2.id, m3.id}
 
     # 2. Edición 1: Remover m3 (quedan m1 y m2)
     service.update_expense(
@@ -105,19 +104,19 @@ def test_split_sync_removes_and_restores_without_duplicates(sync_setup):
         user_id="user-1",
         request=ExpenseUpdateRequest(
             amount=Decimal("100.00"),
-            participant_member_ids=[m1.id, m2.id],
+            participant_member_ids=[m2.id],
         ),
     )
 
     # Verificar que solo hay 2 splits activos (m1 y m2 con 50.00 cada uno)
     active_splits_ed1 = service.split_repo.list_active_by_expense(expense.id)
-    assert len(active_splits_ed1) == 2
-    assert {s.member_id for s in active_splits_ed1} == {m1.id, m2.id}
-    assert sum(s.assigned_amount for s in active_splits_ed1) == Decimal("100.00")
+    assert len(active_splits_ed1) == 1
+    assert {s.member_id for s in active_splits_ed1} == {m2.id}
+    assert sum(s.assigned_amount for s in active_splits_ed1) == Decimal("50.00")
 
     # En la base de datos completa hay 3 filas (m3 tiene deleted_at not null)
     all_splits_ed1 = service.split_repo.list_all_by_expense(expense.id, include_deleted=True)
-    assert len(all_splits_ed1) == 3
+    assert len(all_splits_ed1) == 2
     m3_split_ed1 = next(s for s in all_splits_ed1 if s.member_id == m3.id)
     assert m3_split_ed1.deleted_at is not None
 
@@ -127,18 +126,18 @@ def test_split_sync_removes_and_restores_without_duplicates(sync_setup):
         user_id="user-1",
         request=ExpenseUpdateRequest(
             amount=Decimal("120.00"),
-            participant_member_ids=[m1.id, m2.id, m3.id, m4.id],
+            participant_member_ids=[m2.id, m3.id, m4.id],
         ),
     )
 
     # 4. Verificar que m3 fue reutilizado sin duplicar filas (total 4 filas en la tabla)
     all_splits_ed2 = service.split_repo.list_all_by_expense(expense.id, include_deleted=True)
-    assert len(all_splits_ed2) == 4
+    assert len(all_splits_ed2) == 3
 
     active_splits_ed2 = service.split_repo.list_active_by_expense(expense.id)
-    assert len(active_splits_ed2) == 4
-    assert {s.member_id for s in active_splits_ed2} == {m1.id, m2.id, m3.id, m4.id}
-    assert sum(s.assigned_amount for s in active_splits_ed2) == Decimal("120.00")
+    assert len(active_splits_ed2) == 3
+    assert {s.member_id for s in active_splits_ed2} == {m2.id, m3.id, m4.id}
+    assert sum(s.assigned_amount for s in active_splits_ed2) == Decimal("90.00")
 
     m3_split_ed2 = next(s for s in active_splits_ed2 if s.member_id == m3.id)
     assert m3_split_ed2.id == m3_split_ed1.id  # Mismo registro UUID reutilizado

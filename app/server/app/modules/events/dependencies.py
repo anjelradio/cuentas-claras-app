@@ -10,6 +10,7 @@ from app.modules.events.repositories.member_repository import MemberRepository
 from app.modules.events.repositories.qr_asset_cleanup_repository import QrAssetCleanupRepository
 from app.modules.events.repositories.unit_of_work import EventUnitOfWork
 from app.modules.events.services.event_service import EventService
+from app.modules.events.services.expense_context_service import ExpenseContextService
 from app.modules.events.services.invitation_service import InvitationService
 from app.modules.events.services.member_service import MemberService
 from app.modules.events.services.qr_service import QrService
@@ -50,3 +51,9 @@ def get_invitation_service(session: SessionDep) -> InvitationService:
 def get_qr_service(session: SessionDep) -> QrService:
     events, members, _, cleanups, uow = repositories(session)
     return QrService(events, members, cleanups, uow)
+
+
+def get_expense_context_service(session: SessionDep) -> ExpenseContextService:
+    """Expone la colaboración autorizada que Expenses necesita de Events."""
+    events, members, _, _, _ = repositories(session)
+    return ExpenseContextService(events, members)

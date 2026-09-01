@@ -3,7 +3,7 @@
 import * as React from "react"
 import { ArrowLeft, Trash2 } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 
 import { buttonVariants } from "@/components/ui/button"
@@ -28,15 +28,25 @@ interface ExpenseDetailViewProps {
   eventName?: string
 }
 
-/** Vista interactiva del detalle del gasto con soporte de anulación real y refresco de comprobante. */
+/** Vista interactiva del detalle del gasto con soporte contextual de rol, pagos y anulación real. */
 export function ExpenseDetailView({
   eventId,
   expense,
   eventName = "Evento",
 }: ExpenseDetailViewProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const action = searchParams.get("action")
+  const splitId = searchParams.get("splitId")
+
   const [isCancelOpen, setIsCancelOpen] = React.useState(false)
   const [isCanceling, setIsCanceling] = React.useState(false)
+
+  function handleClearActionUrl() {
+    if (typeof window !== "undefined" && window.location.search) {
+      window.history.replaceState(null, "", window.location.pathname)
+    }
+  }
 
   async function handleCancelExpense() {
     setIsCanceling(true)
@@ -52,7 +62,8 @@ export function ExpenseDetailView({
     }
   }
 
-  function handleReceiptUpdated() {
+  function handleDataUpdated() {
+    handleClearActionUrl()
     router.refresh()
   }
 
@@ -76,12 +87,21 @@ export function ExpenseDetailView({
         <div className="lg:col-span-7">
           <ExpenseSummary
             expense={expense}
+            autoOpenPay={action === "pay"}
             onCancel={() => setIsCancelOpen(true)}
-            onReceiptUpdated={handleReceiptUpdated}
+            onReceiptUpdated={handleDataUpdated}
+            onPaymentUpdated={handleDataUpdated}
+            onClosePay={handleClearActionUrl}
           />
         </div>
         <div className="lg:col-span-5">
-          <ExpenseParticipants splits={expense.splits} />
+          <ExpenseParticipants
+            splits={expense.splits}
+            isPayer={expense.is_payer}
+            autoOpenSplitId={action === "verify" ? splitId : null}
+            onPaymentResolved={handleDataUpdated}
+            onCloseVerify={handleClearActionUrl}
+          />
         </div>
       </div>
 

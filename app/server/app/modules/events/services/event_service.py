@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
 from app.core.errors import ValidationError
@@ -9,8 +10,15 @@ from app.modules.events.models.event_member import EventMember
 from app.modules.events.repositories.event_repository import EventRepository
 from app.modules.events.repositories.member_repository import MemberRepository
 from app.modules.events.repositories.unit_of_work import EventUnitOfWork
-from app.modules.events.schemas.event_schemas import EventCreateRequest, EventUpdateRequest
+from app.modules.events.schemas.event_schemas import (
+    EventCategoryStatItem,
+    EventCreateRequest,
+    EventStatisticsRead,
+    EventUpdateRequest,
+    RecentEventRead,
+)
 from app.modules.events.services.event_authorization_service import EventAuthorizationService
+
 
 
 class EventService:
@@ -162,3 +170,170 @@ class EventService:
         except Exception:
             self.uow.rollback()
             raise
+
+    def get_recent_events_with_spending(
+        self, user_id: str, limit: int = 2
+    ) -> list[RecentEventRead]:
+        from sqlmodel import col, desc, select
+
+        from app.modules.expenses.models.expense import Expense
+        from app.modules.expenses.models.expense_split import ExpenseSplit
+        from app.modules.payments.models.enums import PaymentStatus
+        from app.modules.payments.models.payment import Payment
+
+        # 1. Obtener los eventos activos del usuario ordenados por fecha de creación desc
+        memberships_query = (
+            select(EventMember, Event)
+            .join(Event, Event.id == EventMember.event_id)
+            .where(
+                EventMember.user_id == user_id,
+                EventMember.status == MemberStatus.ACTIVE,
+                EventMember.deleted_at.is_(None),
+                Event.deleted_at.is_(None),
+            )
+            .order_by(desc(Event.created_at))
+            .limit(limit)
+        )
+        rows = self.events.session.exec(memberships_query).all()
+        if not rows:
+            return []
+
+        recent_events: list[RecentEventRead] = []
+
+        for user_member, event in rows:
+            # Miembros activos del evento
+            active_members = self.members.get_active_members(event.id)
+            member_count = len(active_members)
+
+            # Gastos activos del evento
+            expenses = list(
+                self.events.session.exec(
+                    select(Expense).where(
+                        Expense.event_id == event.id,
+                        Expense.deleted_at.is_(None),
+                    )
+                ).all()
+            )
+            expense_count = len(expenses)
+
+            # Cálculo de gasto personal:
+            # 1) En gastos pagados por el usuario: (monto - devolución) si payer_participated
+            # 2) En gastos de otros: suma de cuotas asignadas al usuario con pago confirmado
+            personal_spent = Decimal("0.00")
+
+            if expenses:
+                expense_ids = [e.id for e in expenses]
+                splits = list(
+                    self.events.session.exec(
+                        select(ExpenseSplit).where(
+                            col(ExpenseSplit.expense_id).in_(expense_ids),
+                            ExpenseSplit.deleted_at.is_(None),
+                            ExpenseSplit.member_id == user_member.id,
+                        )
+                    ).all()
+                )
+                split_ids = [s.id for s in splits]
+
+                confirmed_split_ids = set()
+                if split_ids:
+                    payments = list(
+                        self.events.session.exec(
+                            select(Payment).where(
+                                col(Payment.split_id).in_(split_ids),
+                                Payment.status == PaymentStatus.CONFIRMED,
+                                Payment.deleted_at.is_(None),
+                            )
+                        ).all()
+                    )
+                    confirmed_split_ids = {p.split_id for p in payments}
+
+                for expense in expenses:
+                    if expense.paid_by_member_id == user_member.id:
+                        if expense.payer_participated:
+                            personal_spent += (expense.amount - expense.refund_amount)
+
+                for split in splits:
+                    if split.id in confirmed_split_ids:
+                        personal_spent += split.assigned_amount
+
+            recent_events.append(
+                RecentEventRead(
+                    id=event.id,
+                    name=event.name,
+                    icon=event.icon,
+                    status=event.status,
+                    member_count=member_count,
+                    expense_count=expense_count,
+                    personal_spent_amount=personal_spent.quantize(Decimal("0.01")),
+                    created_at=event.created_at,
+                )
+            )
+
+        return recent_events
+
+    def get_event_statistics(self, event_id: UUID, user_id: str) -> EventStatisticsRead:
+        from sqlmodel import select
+
+        from app.modules.expenses.models.enums import ExpenseCategory
+        from app.modules.expenses.models.expense import Expense
+
+        # Validar membresía activa
+        self.authorization.require_active_member(event_id, user_id)
+
+        expenses = list(
+            self.events.session.exec(
+                select(Expense).where(
+                    Expense.event_id == event_id,
+                    Expense.deleted_at.is_(None),
+                )
+            ).all()
+        )
+
+        total_amount = sum((e.amount for e in expenses), Decimal("0.00")).quantize(Decimal("0.01"))
+
+        category_labels = {
+            ExpenseCategory.FOOD: "Comida",
+            ExpenseCategory.LODGING: "Hospedaje",
+            ExpenseCategory.TRANSPORT: "Transporte",
+            ExpenseCategory.SHOPPING: "Compras",
+            ExpenseCategory.ENTERTAINMENT: "Entretenimiento",
+            ExpenseCategory.OTHER: "Otra",
+        }
+
+        # Agrupar por categoría
+        grouped: dict[ExpenseCategory, dict] = {}
+        for cat in ExpenseCategory:
+            grouped[cat] = {"amount": Decimal("0.00"), "count": 0}
+
+        for expense in expenses:
+            cat = expense.category
+            if cat in grouped:
+                grouped[cat]["amount"] += expense.amount
+                grouped[cat]["count"] += 1
+
+        categories_stat: list[EventCategoryStatItem] = []
+        for cat, data in grouped.items():
+            if data["count"] > 0 or total_amount == Decimal("0.00"):
+                percentage = 0.0
+                if total_amount > Decimal("0.00"):
+                    percentage = round(float(data["amount"] / total_amount * 100), 2)
+                categories_stat.append(
+                    EventCategoryStatItem(
+                        category=cat,
+                        label=category_labels.get(cat, cat.value.capitalize()),
+                        amount=data["amount"].quantize(Decimal("0.01")),
+                        percentage=percentage,
+                        count=data["count"],
+                    )
+                )
+
+        # Ordenar categorías con mayor gasto primero
+        categories_stat.sort(key=lambda x: x.amount, reverse=True)
+
+        return EventStatisticsRead(
+            event_id=event_id,
+            total_amount=total_amount,
+            currency="Bs.",
+            categories=categories_stat,
+        )
+

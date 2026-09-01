@@ -9,7 +9,7 @@ class JoinEventRequest(BaseModel):
 
 
 class MemberRead(BaseModel):
-    id: UUID | None = None
+    id: UUID
     user_id: str
     name: str
     email: str

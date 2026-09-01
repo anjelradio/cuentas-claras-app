@@ -59,12 +59,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(health_router)
 
     from app.modules.activity.routers.activity import router as activity_router
+    from app.modules.activity.routers.activity import user_router as user_activity_router
     from app.modules.events.routers.event_router import router as event_router
     from app.modules.expenses.routers.expense_router import router as expense_router
+    from app.modules.payments.routers.payment_router import router as payment_router
 
     application.include_router(event_router)
     application.include_router(activity_router)
+    application.include_router(user_activity_router)
     application.include_router(expense_router)
+    application.include_router(payment_router)
 
     return application
 

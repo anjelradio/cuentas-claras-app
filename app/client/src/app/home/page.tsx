@@ -12,10 +12,10 @@ import { MyDebtsSheet } from "./_components/my-debts-sheet"
 import { AddExpenseSheet } from "./_components/add-expense-sheet"
 import { getCachedUserEvents } from "../(event)/_services/server-event-api"
 import {
-  mockRequireAttention,
-  mockRecentEvents,
-  mockRecentActivity,
-} from "./_components/home-mock-data"
+  getCachedPendingVerificationPayments,
+  getCachedRecentEvents,
+  getCachedUserRecentActivities,
+} from "../expenses/_services/server-expense-api"
 
 export default async function HomeDashboard() {
   const session = await auth.api.getSession({ headers: await headers() })
@@ -25,13 +25,16 @@ export default async function HomeDashboard() {
   }
 
   const firstName = session.user.name.split(" ")[0]
-  let activeEvents: Awaited<ReturnType<typeof getCachedUserEvents>> = []
-  try {
-    activeEvents = await getCachedUserEvents({ activeOnly: true })
-  } catch {
-    // El resto del Home sigue siendo utilizable si el backend de eventos no está disponible.
-  }
+
+  const [activeEvents, pendingPayments, recentEvents, recentActivities] = await Promise.all([
+    getCachedUserEvents({ activeOnly: true }).catch(() => []),
+    getCachedPendingVerificationPayments().catch(() => []),
+    getCachedRecentEvents(2).catch(() => []),
+    getCachedUserRecentActivities(3).catch(() => []),
+  ])
+
   const today = new Intl.DateTimeFormat('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())
+
 
   return (
     <div className="theme-stitch relative min-h-screen overflow-x-hidden">
@@ -74,14 +77,14 @@ export default async function HomeDashboard() {
             </section>
 
             {/* Requires Attention */}
-            <RequireAttentionList items={mockRequireAttention} />
+            <RequireAttentionList items={pendingPayments} />
 
           </div>
 
           {/* Right Column: Lists & Activity */}
           <div className="lg:col-span-5 flex flex-col gap-6">
-            <RecentEventsCard events={mockRecentEvents} />
-            <RecentActivityCard activities={mockRecentActivity} />
+            <RecentEventsCard events={recentEvents} />
+            <RecentActivityCard activities={recentActivities} />
           </div>
 
         </div>

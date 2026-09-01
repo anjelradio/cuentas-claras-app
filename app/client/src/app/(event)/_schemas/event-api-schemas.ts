@@ -14,7 +14,7 @@ export const eventDetailSchema = eventReadSchema.extend({
   user_id: z.string(), owner_name: z.string().nullable().optional(), is_owner: z.boolean(),
 })
 export const eventMemberSchema = z.object({
-  id: z.string().optional(),
+  id: z.string(),
   user_id: z.string(),
   name: z.string(),
   email: z.string(),

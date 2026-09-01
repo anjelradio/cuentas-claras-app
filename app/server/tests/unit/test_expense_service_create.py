@@ -12,7 +12,7 @@ from app.modules.events.models.event_member import EventMember
 from app.modules.events.models.user_proxy import User
 from app.modules.events.repositories.event_repository import EventRepository
 from app.modules.events.repositories.member_repository import MemberRepository
-from app.modules.events.services.event_authorization_service import EventAuthorizationService
+from app.modules.events.services.expense_context_service import ExpenseContextService
 from app.modules.expenses.models.enums import ExpenseCategory, ExpenseSplitType
 from app.modules.expenses.repositories.expense_repository import ExpenseRepository
 from app.modules.expenses.repositories.expense_split_repository import ExpenseSplitRepository
@@ -65,7 +65,6 @@ def test_setup(session):
 
     event_repo = EventRepository(session)
     member_repo = MemberRepository(session)
-    auth_service = EventAuthorizationService(event_repo, member_repo)
     activity_service = ActivityService(session)
     expense_repo = ExpenseRepository(session)
     split_repo = ExpenseSplitRepository(session)
@@ -75,8 +74,7 @@ def test_setup(session):
         expense_repo=expense_repo,
         split_repo=split_repo,
         uow=uow,
-        auth_service=auth_service,
-        member_repo=member_repo,
+        event_context=ExpenseContextService(event_repo, member_repo),
         activity_service=activity_service,
     )
 
@@ -103,9 +101,9 @@ def test_create_expense_equal_split_success(test_setup):
         amount=Decimal("100.00"),
         category=ExpenseCategory.FOOD,
         split_type=ExpenseSplitType.EQUAL,
-        paid_by_member_id=m1.id,
+        payer_participated=True,
         expense_date=datetime.now(UTC),
-        participant_member_ids=[m1.id, m2.id],
+        participant_member_ids=[m2.id],
     )
 
     expense = service.create_expense(event_id=event1.id, user_id="user-1", request=req)
@@ -114,8 +112,9 @@ def test_create_expense_equal_split_success(test_setup):
     assert expense.name == "Almuerzo"
 
     splits = service.split_repo.list_active_by_expense(expense.id)
-    assert len(splits) == 2
-    assert sum(s.assigned_amount for s in splits) == Decimal("100.00")
+    assert len(splits) == 1
+    assert sum(s.assigned_amount for s in splits) == Decimal("50.00")
+    assert expense.refund_amount == Decimal("50.00")
 
 
 def test_create_expense_rejects_cross_event_member(test_setup):
@@ -129,9 +128,9 @@ def test_create_expense_rejects_cross_event_member(test_setup):
         amount=Decimal("100.00"),
         category=ExpenseCategory.FOOD,
         split_type=ExpenseSplitType.EQUAL,
-        paid_by_member_id=m1.id,
+        payer_participated=True,
         expense_date=datetime.now(UTC),
-        participant_member_ids=[m1.id, m3_other.id],
+        participant_member_ids=[m3_other.id],
     )
 
     with pytest.raises(ValidationError, match="no pertenece a este evento"):
@@ -141,16 +140,16 @@ def test_create_expense_rejects_cross_event_member(test_setup):
 def test_create_expense_rejects_duplicate_participants(test_setup):
     service = test_setup["service"]
     event1 = test_setup["event1"]
-    m1 = test_setup["m1"]
+    m2 = test_setup["m2"]
 
     req = ExpenseCreateRequest(
         name="Almuerzo",
         amount=Decimal("100.00"),
         category=ExpenseCategory.FOOD,
         split_type=ExpenseSplitType.EQUAL,
-        paid_by_member_id=m1.id,
+        payer_participated=True,
         expense_date=datetime.now(UTC),
-        participant_member_ids=[m1.id, m1.id],
+        participant_member_ids=[m2.id, m2.id],
     )
 
     with pytest.raises(ValidationError, match="duplicados"):
@@ -170,9 +169,9 @@ def test_create_expense_rejects_closed_event(test_setup):
         amount=Decimal("100.00"),
         category=ExpenseCategory.FOOD,
         split_type=ExpenseSplitType.EQUAL,
-        paid_by_member_id=m1.id,
+        payer_participated=True,
         expense_date=datetime.now(UTC),
-        participant_member_ids=[m1.id],
+        participant_member_ids=[],
     )
 
     with pytest.raises(ValidationError, match="cerrado"):

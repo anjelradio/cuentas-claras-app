@@ -7,6 +7,7 @@ from app.core.errors import ValidationError
 from app.core.security import get_current_user
 from app.modules.expenses.dependencies import get_expense_service
 from app.modules.expenses.schemas.expense_schemas import (
+    DebtsSummaryRead,
     DiscardReceiptRequest,
     ExpenseCreateRequest,
     ExpenseDetailRead,
@@ -21,6 +22,16 @@ from app.modules.expenses.services.expense_service import ExpenseService
 router = APIRouter(prefix="/api", tags=["expenses"])
 UserDep = Annotated[str, Depends(get_current_user)]
 ExpenseServiceDep = Annotated[ExpenseService, Depends(get_expense_service)]
+
+
+@router.get("/expenses/debts/summary", response_model=DebtsSummaryRead)
+def get_debts_summary(
+    user_id: UserDep,
+    service: ExpenseServiceDep,
+    event_id: UUID | None = Query(None, description="Filtrar deudas por evento específico"),
+):
+    return service.get_debts_summary(user_id, event_id=event_id)
+
 
 
 @router.post(
@@ -148,7 +159,7 @@ async def upload_expense_receipt(
     file: Annotated[UploadFile, File()],
 ):
     content = await file.read()
-    return service.replace_receipt(expense_id, user_id, content, file.content_type)
+    return service.update_receipt(expense_id, user_id, content, file.content_type)
 
 
 @router.delete("/expenses/{expense_id}/receipt", status_code=204)

@@ -13,7 +13,7 @@ from app.modules.events.models.event_member import EventMember
 from app.modules.events.models.user_proxy import User
 from app.modules.events.repositories.event_repository import EventRepository
 from app.modules.events.repositories.member_repository import MemberRepository
-from app.modules.events.services.event_authorization_service import EventAuthorizationService
+from app.modules.events.services.expense_context_service import ExpenseContextService
 from app.modules.expenses.integrations.gemini_analyzer import GeminiReceiptAnalyzer
 from app.modules.expenses.integrations.receipt_storage import StoredReceipt
 from app.modules.expenses.models.enums import ExpenseCategory, ExpenseSplitType
@@ -135,8 +135,7 @@ def test_expense_service_analyze_receipt(session, setup_data):
         expense_repo=ExpenseRepository(session),
         split_repo=ExpenseSplitRepository(session),
         uow=ExpenseUnitOfWork(session),
-        auth_service=EventAuthorizationService(EventRepository(session), MemberRepository(session)),
-        member_repo=MemberRepository(session),
+        event_context=ExpenseContextService(EventRepository(session), MemberRepository(session)),
         activity_service=ActivityService(session),
         receipt_storage=mock_storage,
         gemini_analyzer=mock_analyzer,
@@ -161,8 +160,7 @@ def test_expense_service_create_with_prefilled_receipt_url(session, setup_data):
         expense_repo=ExpenseRepository(session),
         split_repo=ExpenseSplitRepository(session),
         uow=ExpenseUnitOfWork(session),
-        auth_service=EventAuthorizationService(EventRepository(session), MemberRepository(session)),
-        member_repo=MemberRepository(session),
+        event_context=ExpenseContextService(EventRepository(session), MemberRepository(session)),
         activity_service=ActivityService(session),
     )
 
@@ -171,9 +169,9 @@ def test_expense_service_create_with_prefilled_receipt_url(session, setup_data):
         amount=Decimal("50.00"),
         category=ExpenseCategory.FOOD,
         split_type=ExpenseSplitType.EQUAL,
-        paid_by_member_id=member.id,
+        payer_participated=True,
         expense_date=datetime.now(UTC),
-        participant_member_ids=[member.id],
+        participant_member_ids=[],
         receipt_url="https://cloudinary.com/prefilled-image.jpg",
     )
 
@@ -197,8 +195,7 @@ def test_expense_service_discard_temp_receipt(session, setup_data):
         expense_repo=ExpenseRepository(session),
         split_repo=ExpenseSplitRepository(session),
         uow=ExpenseUnitOfWork(session),
-        auth_service=EventAuthorizationService(EventRepository(session), MemberRepository(session)),
-        member_repo=MemberRepository(session),
+        event_context=ExpenseContextService(EventRepository(session), MemberRepository(session)),
         receipt_storage=mock_storage,
     )
 
@@ -210,4 +207,3 @@ def test_expense_service_discard_temp_receipt(session, setup_data):
     )
 
     mock_storage.destroy.assert_called_once_with(valid_public_id)
-

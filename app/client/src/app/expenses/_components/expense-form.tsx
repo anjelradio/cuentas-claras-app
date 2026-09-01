@@ -62,11 +62,9 @@ export function ExpenseForm({
   const [category, setCategory] = React.useState<ExpenseCategory>(
     expense?.category ?? initialValues?.category ?? "food"
   )
-  const [splitType, setSplitType] = React.useState<ExpenseSplitType>(
-    expense?.split_type ?? "equal"
-  )
-  const [paidByMemberId, setPaidByMemberId] = React.useState<string>(
-    () => expense?.paid_by_member_id ?? (currentUserMemberId || members[0]?.id || "")
+  const [splitType, setSplitType] = React.useState<ExpenseSplitType>(expense?.split_type ?? "equal")
+  const [payerParticipated, setPayerParticipated] = React.useState<boolean | null>(
+    () => expense?.payer_participated ?? null
   )
   const [expenseDate, setExpenseDate] = React.useState<string>(
     expense?.expense_date
@@ -86,7 +84,9 @@ export function ExpenseForm({
   const [receiptPublicId, setReceiptPublicId] = React.useState<string | null>(null)
   const [isImageSheetOpen, setIsImageSheetOpen] = React.useState(false)
 
-  // Cargar datos pre-llenados por IA desde sessionStorage al crear
+  // Cargar datos pre-llenados por IA desde sessionStorage al crear.
+  // Este efecto sincroniza una fuente externa (sessionStorage) con el formulario.
+  /* eslint-disable react-hooks/set-state-in-effect */
   React.useEffect(() => {
     if (mode === "create") {
       try {
@@ -123,12 +123,13 @@ export function ExpenseForm({
       }
     }
   }, [mode])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const [selectedMemberIds, setSelectedMemberIds] = React.useState<Set<string>>(() => {
     if (expense?.splits && expense.splits.length > 0) {
       return new Set(expense.splits.map((s) => s.member_id))
     }
-    return new Set(members.map((m) => m.id))
+    return new Set(members.filter((member) => member.id !== currentUserMemberId).map((member) => member.id))
   })
 
   const [exactAmounts, setExactAmounts] = React.useState<Record<string, string>>(() => {
@@ -136,6 +137,9 @@ export function ExpenseForm({
       const map: Record<string, string> = {}
       for (const s of expense.splits) {
         map[s.member_id] = String(s.assigned_amount)
+      }
+      if (expense.payer_participated && currentUserMemberId) {
+        map[currentUserMemberId] = String(expense.payer_contribution)
       }
       return map
     }
@@ -145,47 +149,6 @@ export function ExpenseForm({
   const [invalidFields, setInvalidFields] = React.useState<Set<string>>(new Set())
   const [isParticipantsOpen, setIsParticipantsOpen] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-
-  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("El comprobante no debe superar los 5 MB.")
-      return
-    }
-
-    const validTypes = ["image/jpeg", "image/png", "image/webp"]
-    if (!validTypes.includes(file.type)) {
-      toast.error("Solo se aceptan imágenes JPEG, PNG y WebP.")
-      return
-    }
-
-    if (receiptPublicId) {
-      ExpenseApi.discardReceipt(eventId, receiptPublicId).catch(() => {})
-      setReceiptPublicId(null)
-      setReceiptUrl(null)
-      try {
-        sessionStorage.removeItem("ai_expense_prefill")
-      } catch {}
-    }
-
-    setReceiptFile(file)
-    setReceiptPreview(URL.createObjectURL(file))
-  }
-
-  function handleRemoveReceipt() {
-    if (receiptPublicId) {
-      ExpenseApi.discardReceipt(eventId, receiptPublicId).catch(() => {})
-      setReceiptPublicId(null)
-    }
-    setReceiptFile(null)
-    setReceiptPreview(null)
-    setReceiptUrl(null)
-    try {
-      sessionStorage.removeItem("ai_expense_prefill")
-    } catch {}
-  }
 
   function handleCancel() {
     if (mode === "create" && receiptPublicId) {
@@ -206,11 +169,10 @@ export function ExpenseForm({
     const invalid = new Set<string>()
     if (!name.trim()) invalid.add("name")
     if (!amount.trim() || Number.parseFloat(amount) <= 0) invalid.add("amount")
-    if (!paidByMemberId) invalid.add("paidByMemberId")
 
     setInvalidFields(invalid)
     if (invalid.size > 0) {
-      toast.error("Completa el nombre, monto válido y pagador del gasto.")
+      toast.error("Completa el nombre y un monto válido para continuar.")
       return
     }
 
@@ -220,20 +182,36 @@ export function ExpenseForm({
   async function handleFinalSubmit() {
     setIsSubmitting(true)
     try {
-      const parsedAmount = Number.parseFloat(amount).toFixed(2)
+      const parsedAmount = (Math.round(Number.parseFloat(amount) * 100) / 100).toFixed(2)
       const parsedDate = new Date(`${expenseDate}T12:00:00Z`).toISOString()
 
+      if (payerParticipated === null) {
+        toast.error("Indica si participaste en este gasto.")
+        return
+      }
+
       if (splitType === "exact") {
-        const splitsPayload = Array.from(selectedMemberIds).map((memberId) => ({
+        const exactMemberIds = new Set(selectedMemberIds)
+        if (payerParticipated && currentUserMemberId) exactMemberIds.add(currentUserMemberId)
+        const splitsPayload = Array.from(exactMemberIds).map((memberId) => ({
           member_id: memberId,
           assigned_amount: (Number.parseFloat(exactAmounts[memberId] || "0")).toFixed(2),
-        }))
+        })).filter((split) => Number.parseFloat(split.assigned_amount) > 0)
 
         const sumSplits = splitsPayload.reduce((acc, s) => acc + Number.parseFloat(s.assigned_amount), 0)
-        if (Math.abs(sumSplits - Number.parseFloat(parsedAmount)) > 0.009) {
+        if (sumSplits - Number.parseFloat(parsedAmount) > 0.009) {
           toast.error(
-            `La suma de las cuotas (Bs. ${sumSplits.toFixed(2)}) no coincide con el total (Bs. ${parsedAmount}).`
+            `La devolución (Bs. ${sumSplits.toFixed(2)}) no puede superar el total (Bs. ${parsedAmount}).`
           )
+          setIsSubmitting(false)
+          return
+        }
+        const sumAllExact = Array.from(exactMemberIds).reduce(
+          (acc, memberId) => acc + Number.parseFloat(exactAmounts[memberId] || "0"),
+          0,
+        )
+        if ((payerParticipated && (!currentUserMemberId || Math.abs(sumAllExact - Number.parseFloat(parsedAmount)) > 0.009)) || (!payerParticipated && Math.abs(sumSplits - Number.parseFloat(parsedAmount)) > 0.009)) {
+          toast.error("Los montos exactos deben coincidir con el total del gasto.")
           setIsSubmitting(false)
           return
         }
@@ -246,8 +224,8 @@ export function ExpenseForm({
               description: description.trim() || null,
               amount: parsedAmount,
               category,
-              split_type: "exact",
-              paid_by_member_id: paidByMemberId,
+              split_type: splitType,
+              payer_participated: payerParticipated,
               expense_date: parsedDate,
               splits: splitsPayload,
             },
@@ -263,8 +241,8 @@ export function ExpenseForm({
               description: description.trim() || null,
               amount: parsedAmount,
               category,
-              split_type: "exact",
-              paid_by_member_id: paidByMemberId,
+              split_type: splitType,
+              payer_participated: payerParticipated,
               expense_date: parsedDate,
               splits: splitsPayload,
               receipt_url: receiptFile ? null : receiptUrl,
@@ -279,8 +257,8 @@ export function ExpenseForm({
         }
       } else {
         const participantIds = Array.from(selectedMemberIds)
-        if (participantIds.length === 0) {
-          toast.error("Debe seleccionar al menos un participante para la división equitativa.")
+        if (participantIds.length === 0 && !payerParticipated) {
+          toast.error("Selecciona a alguien cuando indicas que no participaste.")
           setIsSubmitting(false)
           return
         }
@@ -293,8 +271,8 @@ export function ExpenseForm({
               description: description.trim() || null,
               amount: parsedAmount,
               category,
-              split_type: "equal",
-              paid_by_member_id: paidByMemberId,
+              split_type: splitType,
+              payer_participated: payerParticipated,
               expense_date: parsedDate,
               participant_member_ids: participantIds,
             },
@@ -310,8 +288,8 @@ export function ExpenseForm({
               description: description.trim() || null,
               amount: parsedAmount,
               category,
-              split_type: "equal",
-              paid_by_member_id: paidByMemberId,
+              split_type: splitType,
+              payer_participated: payerParticipated,
               expense_date: parsedDate,
               participant_member_ids: participantIds,
               receipt_url: receiptFile ? null : receiptUrl,
@@ -441,6 +419,29 @@ export function ExpenseForm({
             />
           </div>
 
+          {/* Modalidad de división */}
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border bg-[#151a30]/60 p-1" aria-label="Modalidad de división">
+            {(["equal", "exact"] as const).map((modeOption) => (
+              <button
+                key={modeOption}
+                type="button"
+                aria-pressed={splitType === modeOption}
+                onClick={() => setSplitType(modeOption)}
+                className={cn(
+                  "rounded-xl px-3 py-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                  splitType === modeOption
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-white/10 hover:text-white",
+                )}
+              >
+                <span className="block">{modeOption === "equal" ? "Montos iguales" : "Montos exactos"}</span>
+                <span className="mt-1 block text-[11px] font-normal opacity-80">
+                  {modeOption === "equal" ? "Todos pagan por igual" : "Define cuánto paga cada persona"}
+                </span>
+              </button>
+            ))}
+          </div>
+
           {/* Comprobante */}
           {receiptPreview ? (
             <div className="flex justify-center pt-2">
@@ -542,16 +543,18 @@ export function ExpenseForm({
       <ExpenseParticipantsSheet
         open={isParticipantsOpen}
         onOpenChange={setIsParticipantsOpen}
-        members={members}
+        members={members.filter((member) => member.id !== currentUserMemberId)}
+        payer={members.find((member) => member.id === currentUserMemberId)}
         splitType={splitType}
-        onSplitTypeChange={setSplitType}
         selectedMemberIds={selectedMemberIds}
         onSelectedMemberIdsChange={setSelectedMemberIds}
         exactAmounts={exactAmounts}
         onExactAmountChange={handleExactAmountChange}
         totalAmount={amount}
-        currentUserMemberId={currentUserMemberId}
+        payerParticipated={payerParticipated}
+        onPayerParticipatedChange={setPayerParticipated}
         onConfirm={handleFinalSubmit}
+        isSubmitting={isSubmitting}
       />
     </div>
   )

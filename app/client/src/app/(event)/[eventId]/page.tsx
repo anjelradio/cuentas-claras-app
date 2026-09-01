@@ -4,9 +4,8 @@ import { RecentActivitiesCard } from "./_components/recent-activities-card"
 import { RecentExpensesCard } from "./_components/recent-expenses-card"
 import { getCachedEventDetail, getCachedMyQr } from "../_services/server-event-api"
 import { listEventActivities } from "../_services/activity"
-import { getCachedEventExpenses } from "@/app/expenses/_services/server-expense-api"
+import { getCachedEventExpenses, getCachedEventStatistics } from "@/app/expenses/_services/server-expense-api"
 import { formatEventDate } from "../_lib/format-event-date"
-import { STATISTICS_DEMO } from "../_demo/event-home-demo"
 
 interface EventHomePageProps {
   params: Promise<{ eventId: string }>
@@ -15,11 +14,17 @@ interface EventHomePageProps {
 export default async function EventHomePage({ params }: EventHomePageProps) {
   const { eventId } = await params
   
-  const [event, qrImage, activitiesData, expensesData] = await Promise.all([
+  const [event, qrImage, activitiesData, expensesData, statisticsData] = await Promise.all([
     getCachedEventDetail(eventId), 
     getCachedMyQr(eventId),
     listEventActivities(eventId, 3, 0).catch(() => ({ items: [] })),
     getCachedEventExpenses(eventId, "all").catch(() => []),
+    getCachedEventStatistics(eventId).catch(() => ({
+      event_id: eventId,
+      total_amount: 0,
+      currency: "Bs.",
+      categories: [],
+    })),
   ])
 
   // Transform EventDetail into EventView for the components
@@ -72,7 +77,7 @@ export default async function EventHomePage({ params }: EventHomePageProps) {
           debts={[]}
           qrImage={qrImage}
         />
-        <EventStatisticsCard statistics={STATISTICS_DEMO} />
+        <EventStatisticsCard statistics={statisticsData} />
       </div>
 
       <aside className="flex flex-col gap-6 lg:col-span-5">

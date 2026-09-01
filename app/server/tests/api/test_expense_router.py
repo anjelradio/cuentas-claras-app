@@ -16,7 +16,7 @@ from app.modules.events.models.event_member import EventMember
 from app.modules.events.models.user_proxy import User
 from app.modules.events.repositories.event_repository import EventRepository
 from app.modules.events.repositories.member_repository import MemberRepository
-from app.modules.events.services.event_authorization_service import EventAuthorizationService
+from app.modules.events.services.expense_context_service import ExpenseContextService
 from app.modules.expenses.dependencies import get_expense_service
 from app.modules.expenses.integrations.receipt_storage import ExpenseReceiptStorage, StoredReceipt
 from app.modules.expenses.repositories.expense_repository import ExpenseRepository
@@ -92,14 +92,12 @@ def test_client(seeded_db, mock_storage):
     def override_get_expense_service():
         event_repo = EventRepository(session)
         member_repo = MemberRepository(session)
-        auth_service = EventAuthorizationService(event_repo, member_repo)
         activity_service = ActivityService(session)
         return ExpenseService(
             expense_repo=ExpenseRepository(session),
             split_repo=ExpenseSplitRepository(session),
             uow=ExpenseUnitOfWork(session),
-            auth_service=auth_service,
-            member_repo=member_repo,
+            event_context=ExpenseContextService(event_repo, member_repo),
             activity_service=activity_service,
             receipt_storage=mock_storage,
         )
@@ -123,9 +121,9 @@ async def test_create_and_get_expense_json(test_client, seeded_db):
         "amount": "120.00",
         "category": "food",
         "split_type": "equal",
-        "paid_by_member_id": str(m1.id),
+        "payer_participated": True,
         "expense_date": datetime.now(UTC).isoformat(),
-        "participant_member_ids": [str(m1.id), str(m2.id)],
+        "participant_member_ids": [str(m2.id)],
     }
 
     async with test_client as client:
@@ -141,7 +139,7 @@ async def test_create_and_get_expense_json(test_client, seeded_db):
         assert res_detail.status_code == 200
         detail = res_detail.json()
         assert detail["created_by_member_name"] == "Ana Lopez"
-        assert len(detail["splits"]) == 2
+        assert len(detail["splits"]) == 1
         assert detail["splits"][0]["assigned_amount"] == "60.00"
 
         # List
@@ -161,9 +159,9 @@ async def test_update_and_delete_expense(test_client, seeded_db):
         "amount": "200.00",
         "category": "lodging",
         "split_type": "equal",
-        "paid_by_member_id": str(m1.id),
+        "payer_participated": True,
         "expense_date": datetime.now(UTC).isoformat(),
-        "participant_member_ids": [str(m1.id), str(m2.id)],
+        "participant_member_ids": [str(m2.id)],
     }
 
     async with test_client as client:

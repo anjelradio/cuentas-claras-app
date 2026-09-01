@@ -14,8 +14,10 @@ from app.modules.events.schemas.event_schemas import (
     EventCreateRequest,
     EventDetailRead,
     EventRead,
+    EventStatisticsRead,
     EventSummaryRead,
     EventUpdateRequest,
+    RecentEventRead,
     TransferOwnershipRequest,
 )
 from app.modules.events.schemas.invitation_schemas import EventInvitationRead
@@ -50,11 +52,26 @@ def list_events(
     return service.list_user_events(user_id, active_only=active_only)
 
 
+@router.get("/recent", response_model=list[RecentEventRead])
+def get_recent_events(
+    user_id: UserDep,
+    service: EventServiceDep,
+    limit: int = Query(2, ge=1, le=10, description="Cantidad de eventos recientes a retornar"),
+):
+    return service.get_recent_events_with_spending(user_id, limit=limit)
+
+
 @router.post("/join")
 def join_event(request: JoinEventRequest, user_id: UserDep, service: MemberServiceDep):
     """La ruta estática debe evaluarse antes de `/{event_id}`."""
     service.join_event(request.token_hash, user_id)
     return {"status": "ok"}
+
+
+@router.get("/{event_id}/statistics", response_model=EventStatisticsRead)
+def get_event_statistics(event_id: UUID, user_id: UserDep, service: EventServiceDep):
+    return service.get_event_statistics(event_id, user_id)
+
 
 
 @router.get("/{event_id}", response_model=EventDetailRead)

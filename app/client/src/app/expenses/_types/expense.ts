@@ -2,6 +2,11 @@ import type { LucideIcon } from "lucide-react";
 import { Car, Hotel, Package, ShoppingBasket, Ticket, Utensils } from "lucide-react";
 import { z } from "zod";
 import {
+  debtToCollectItemSchema,
+  debtToPayItemSchema,
+  debtsSummarySchema,
+  eventCategoryStatItemSchema,
+  eventStatisticsSchema,
   expenseCategoryEnum,
   expenseCreateRequestSchema,
   expenseDetailSchema,
@@ -12,7 +17,9 @@ import {
   expenseSplitTypeEnum,
   expenseSummarySchema,
   expenseUpdateRequestSchema,
+  pendingVerificationPaymentSchema,
   receiptAnalysisResponseSchema,
+  recentEventSchema,
 } from "../_schemas/expense-api-schemas";
 
 export type ExpenseCategory = z.infer<typeof expenseCategoryEnum>;
@@ -28,6 +35,15 @@ export type ExpenseDetail = z.infer<typeof expenseDetailSchema>;
 export type ExpenseSummary = z.infer<typeof expenseSummarySchema>;
 export type ExpenseReceipt = z.infer<typeof expenseReceiptSchema>;
 export type ReceiptAnalysisResponse = z.infer<typeof receiptAnalysisResponseSchema>;
+
+export type DebtToPayItem = z.infer<typeof debtToPayItemSchema>;
+export type DebtToCollectItem = z.infer<typeof debtToCollectItemSchema>;
+export type DebtsSummary = z.infer<typeof debtsSummarySchema>;
+export type PendingVerificationPayment = z.infer<typeof pendingVerificationPaymentSchema>;
+export type RecentEvent = z.infer<typeof recentEventSchema>;
+export type EventCategoryStatItem = z.infer<typeof eventCategoryStatItemSchema>;
+export type EventStatistics = z.infer<typeof eventStatisticsSchema>;
+
 
 export interface ExpenseCategoryMetadata {
   id: ExpenseCategory;

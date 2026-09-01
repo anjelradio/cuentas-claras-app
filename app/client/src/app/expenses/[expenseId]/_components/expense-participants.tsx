@@ -1,11 +1,18 @@
 "use client"
 
 import * as React from "react"
+import { CheckCircle, Clock, XCircle } from "lucide-react"
 
+import { cn } from "@/lib/utils"
 import type { ExpenseSplit } from "@/app/expenses/_types/expense"
+import { VerifyPaymentSheet } from "./verify-payment-sheet"
 
 interface ExpenseParticipantsProps {
   splits: ExpenseSplit[]
+  isPayer?: boolean
+  autoOpenSplitId?: string | null
+  onPaymentResolved?: () => void
+  onCloseVerify?: () => void
 }
 
 function getInitials(name: string): string {
@@ -16,8 +23,39 @@ function getInitials(name: string): string {
   return name.slice(0, 2).toUpperCase() || "MB"
 }
 
-/** Desglose de cuotas individuales de los participantes asignados al gasto. */
-export function ExpenseParticipants({ splits }: ExpenseParticipantsProps) {
+/** Desglose interactivo de cuotas individuales de los participantes con estados de pago. */
+export function ExpenseParticipants({
+  splits,
+  isPayer = false,
+  autoOpenSplitId,
+  onPaymentResolved,
+  onCloseVerify,
+}: ExpenseParticipantsProps) {
+  const [selectedSplit, setSelectedSplit] = React.useState<ExpenseSplit | null>(null)
+  const [verifyOpen, setVerifyOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!autoOpenSplitId || !isPayer) return
+    const match = splits.find(
+      (s) =>
+        s.id === autoOpenSplitId &&
+        (s.payment_status === "pending_confirmation" || s.payment_status === "confirmed")
+    )
+    if (match) {
+      setSelectedSplit(match)
+      setVerifyOpen(true)
+    }
+  }, [autoOpenSplitId, isPayer, splits])
+
+  function handleParticipantClick(split: ExpenseSplit) {
+    if (!isPayer) return
+    // El pagador puede interactuar para verificar o ver el comprobante
+    if (split.payment_status === "pending_confirmation" || split.payment_status === "confirmed") {
+      setSelectedSplit(split)
+      setVerifyOpen(true)
+    }
+  }
+
   return (
     <section>
       <div className="mb-4 flex items-center justify-between">
@@ -31,31 +69,91 @@ export function ExpenseParticipants({ splits }: ExpenseParticipantsProps) {
         {splits.map((split) => {
           const initials = getInitials(split.member_name)
           const formattedAmount = `Bs. ${Number.parseFloat(String(split.assigned_amount)).toFixed(2)}`
+          const isPending = split.payment_status === "pending_confirmation"
+          const isPaid = split.payment_status === "confirmed"
+          const isUnpaid = split.payment_status === "no_payment" || split.payment_status === "rejected"
+
+          const isClickable = isPayer && (isPending || isPaid)
 
           return (
             <div
               key={split.id}
-              className="flex items-center justify-between rounded-2xl border border-white/5 bg-surface/80 p-4 shadow transition-all hover:bg-headline/5"
+              onClick={() => handleParticipantClick(split)}
+              className={cn(
+                "flex items-center justify-between rounded-2xl border border-white/5 bg-surface/80 p-4 shadow transition-all",
+                isClickable && "cursor-pointer hover:bg-white/5 hover:border-white/15"
+              )}
             >
               <div className="flex items-center gap-3">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-transparent bg-secondary/20 text-sm font-semibold text-secondary">
-                  {initials}
+                <span
+                  className={cn(
+                    "flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+                    isPaid && "bg-success/20 text-success",
+                    isPending && "bg-warning/20 text-warning",
+                    isUnpaid && "bg-error/20 text-error"
+                  )}
+                >
+                  {isPaid ? (
+                    <CheckCircle className="size-5" />
+                  ) : isPending ? (
+                    <Clock className="size-5" />
+                  ) : (
+                    <XCircle className="size-5" />
+                  )}
                 </span>
-                <span className="truncate font-medium text-headline">
-                  {split.member_name}
-                </span>
+                <div>
+                  <p className="truncate font-medium text-headline">
+                    {split.member_name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {isPaid ? "Parte saldada" : `Debe: ${formattedAmount}`}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex flex-col items-end">
-                <span className="text-xs text-muted-foreground">Cuota asignada</span>
-                <span className="font-heading text-sm font-bold text-headline sm:text-base">
-                  {formattedAmount}
-                </span>
+              <div className="flex items-center gap-2">
+                {isPaid && (
+                  <span className="rounded-full bg-success/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-success">
+                    Pagado
+                  </span>
+                )}
+                {isPending && (
+                  <span className="rounded-full bg-warning/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-warning animate-pulse">
+                    Por verificar
+                  </span>
+                )}
+                {isUnpaid && (
+                  <span className="rounded-full bg-error/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-error">
+                    Sin pagar
+                  </span>
+                )}
               </div>
             </div>
           )
         })}
       </div>
+
+      {selectedSplit && (
+        <VerifyPaymentSheet
+          open={verifyOpen}
+          onOpenChange={(open) => {
+            setVerifyOpen(open)
+            if (!open) {
+              setSelectedSplit(null)
+              onCloseVerify?.()
+            }
+          }}
+          paymentId={selectedSplit.payment_id ?? null}
+          memberName={selectedSplit.member_name}
+          amount={`Bs. ${Number.parseFloat(String(selectedSplit.assigned_amount)).toFixed(2)}`}
+          paymentMethod={selectedSplit.payment_method ?? null}
+          proofImageUrl={selectedSplit.proof_image_url ?? null}
+          status={selectedSplit.payment_status}
+          onResolved={() => {
+            onPaymentResolved?.()
+          }}
+        />
+      )}
     </section>
   )
 }

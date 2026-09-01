@@ -44,3 +44,27 @@ def list_activities(
     has_more = offset + limit < total
 
     return ActivityPaginatedRead(items=items, total=total, has_more=has_more)
+
+
+user_router = APIRouter(prefix="/api/activities", tags=["Activities"])
+
+
+@user_router.get("/user-recent", response_model=list[ActivityRead])
+def get_user_recent_activities(
+    limit: int = Query(3, ge=1, le=20),
+    user_id: str = Depends(get_current_user),
+    service: ActivityService = Depends(get_activity_service),
+):
+    activities = service.get_user_recent_activities(user_id=user_id, limit=limit)
+    return [
+        ActivityRead(
+            id=str(activity.id),
+            type=activity.action_type,
+            actorName=activity.actor_name,
+            targetName=activity.target_name,
+            createdAt=activity.created_at,
+            description=activity.description,
+        )
+        for activity in activities
+    ]
+

@@ -11,7 +11,7 @@ from app.modules.events.models.event_member import EventMember
 from app.modules.events.models.user_proxy import User
 from app.modules.events.repositories.event_repository import EventRepository
 from app.modules.events.repositories.member_repository import MemberRepository
-from app.modules.events.services.event_authorization_service import EventAuthorizationService
+from app.modules.events.services.expense_context_service import ExpenseContextService
 from app.modules.expenses.models.enums import ExpenseCategory, ExpenseSplitType
 from app.modules.expenses.repositories.expense_repository import ExpenseRepository
 from app.modules.expenses.repositories.expense_split_repository import ExpenseSplitRepository
@@ -54,8 +54,7 @@ def filter_setup():
         expense_repo=ExpenseRepository(session),
         split_repo=ExpenseSplitRepository(session),
         uow=ExpenseUnitOfWork(session),
-        auth_service=EventAuthorizationService(EventRepository(session), MemberRepository(session)),
-        member_repo=MemberRepository(session),
+        event_context=ExpenseContextService(EventRepository(session), MemberRepository(session)),
         activity_service=ActivityService(session),
     )
 
@@ -68,9 +67,9 @@ def filter_setup():
             amount=Decimal("100.00"),
             category=ExpenseCategory.FOOD,
             split_type=ExpenseSplitType.EQUAL,
-            paid_by_member_id=m1.id,
+            payer_participated=True,
             expense_date=now,
-            participant_member_ids=[m1.id, m2.id],
+            participant_member_ids=[m2.id],
         ),
     )
 
@@ -83,9 +82,9 @@ def filter_setup():
             amount=Decimal("50.00"),
             category=ExpenseCategory.TRANSPORT,
             split_type=ExpenseSplitType.EQUAL,
-            paid_by_member_id=m2.id,
+            payer_participated=True,
             expense_date=now,
-            participant_member_ids=[m2.id, m3.id],
+            participant_member_ids=[m3.id],
         ),
     )
 

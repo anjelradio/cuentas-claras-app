@@ -1,7 +1,7 @@
 import { ArrowRight } from "lucide-react"
 import Link from "next/link"
 
-import { RecentEvent } from "./home-mock-data"
+import type { RecentEvent } from "../../expenses/_types/expense"
 
 interface RecentEventsCardProps {
   events: RecentEvent[]
@@ -18,29 +18,37 @@ export function RecentEventsCard({ events }: RecentEventsCardProps) {
       </div>
 
       <div className="flex flex-col gap-2">
-        {events.map((event) => (
-          <div 
-            key={event.id}
-            className="flex items-center justify-between p-3 -mx-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer border-b border-border last:border-0 pb-4 mb-1"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-[#2d314f] rounded-full flex items-center justify-center text-xl overflow-hidden border border-border shrink-0">
-                {event.emoji}
+        {!events || events.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">No tienes eventos recientes.</p>
+        ) : (
+          events.map((event) => (
+            <Link
+              key={event.id}
+              href={`/${event.id}`}
+              className="flex items-center justify-between p-3 -mx-3 rounded-xl hover:bg-white/5 transition-colors cursor-pointer border-b border-border last:border-0 pb-4 mb-1"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#2d314f] rounded-full flex items-center justify-center text-xl overflow-hidden border border-border shrink-0">
+                  {event.icon || "📅"}
+                </div>
+                <div>
+                  <h4 className="font-medium text-white mb-0.5">{event.name}</h4>
+                  <p className="text-xs text-muted-foreground">{event.member_count} miembros · {event.expense_count} gastos</p>
+                </div>
               </div>
-              <div>
-                <h4 className="font-medium text-white mb-0.5">{event.name}</h4>
-                <p className="text-xs text-muted-foreground">{event.participants} miembros · {event.expenseCount} gastos</p>
+              <div className="text-right">
+                <p className="font-medium text-white text-sm">
+                  Gastaste
+                </p>
+                <p className="text-sm font-semibold text-primary">
+                  Bs. {Number(event.personal_spent_amount).toFixed(2)}
+                </p>
               </div>
-            </div>
-            <div className="text-right">
-              <p className={`font-medium ${event.amountType === "positive" ? "text-[#22c55e]" : "text-[#ef4444]"}`}>
-                {event.amountType === "positive" ? "+" : "-"} Bs. {event.amount.toFixed(2)}
-              </p>
-              <p className="text-xs text-muted-foreground">{event.date}</p>
-            </div>
-          </div>
-        ))}
+            </Link>
+          ))
+        )}
       </div>
     </section>
   )
 }
+

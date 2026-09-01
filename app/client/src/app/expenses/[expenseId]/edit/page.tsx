@@ -13,18 +13,22 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
   const { expenseId } = await params
   const expense = await getCachedExpenseDetail(expenseId)
   const [members, session] = await Promise.all([
-    getCachedEventMembers(expense.event_id).catch(() => []),
-    auth.api.getSession({ headers: await headers() }).catch(() => null),
+    getCachedEventMembers(expense.event_id),
+    auth.api.getSession({ headers: await headers() }),
   ])
 
   const memberOptions = members.map((m) => ({
-    id: m.id || m.user_id,
+    id: m.id,
     name: m.name,
     image: m.image ?? null,
   }))
 
   const currentMember = members.find((m) => m.user_id === session?.user?.id)
-  const currentUserMemberId = currentMember?.id || currentMember?.user_id
+  const currentUserMemberId = currentMember?.id
+
+  if (!currentUserMemberId) {
+    throw new Error("No fue posible identificar tu membresía activa en este evento.")
+  }
 
   return (
     <ExpenseForm

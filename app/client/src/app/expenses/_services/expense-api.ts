@@ -176,4 +176,25 @@ export const ExpenseApi = {
     });
     await handleResponse<void>(res);
   },
+
+  async getDebtsSummary(eventId?: string): Promise<import("../_types/expense").DebtsSummary> {
+    const url = eventId
+      ? `${API_BASE}/expenses/debts/summary?event_id=${eventId}`
+      : `${API_BASE}/expenses/debts/summary`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: await getHeaders(),
+    });
+    const { debtsSummarySchema } = await import("../_schemas/expense-api-schemas");
+    return debtsSummarySchema.parse(await handleResponse<unknown>(res));
+  },
+
+  async getEventStatistics(eventId: string): Promise<import("../_types/expense").EventStatistics> {
+    const res = await fetch(`${API_BASE}/events/${eventId}/statistics`, {
+      method: "GET",
+      headers: await getHeaders(),
+    });
+    const { eventStatisticsSchema } = await import("../_schemas/expense-api-schemas");
+    return eventStatisticsSchema.parse(await handleResponse<unknown>(res));
+  },
 };

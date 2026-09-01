@@ -56,3 +56,34 @@ class ActivityService:
             print(f"[DEBUG] User {user_id} FORBIDDEN for event {event_id}")
             raise NotFoundError("El evento no existe o no tienes acceso.")
         return self.repository.list_activities(event_id, limit, offset)
+
+    def get_user_recent_activities(
+        self, user_id: str, limit: int = 3
+    ) -> list[ActivityLog]:
+        from sqlmodel import col, desc, select
+
+        from app.modules.events.models.enums import MemberStatus
+        from app.modules.events.models.event_member import EventMember
+
+        memberships = list(
+            self.session.exec(
+                select(EventMember).where(
+                    EventMember.user_id == user_id,
+                    EventMember.status == MemberStatus.ACTIVE,
+                    EventMember.deleted_at.is_(None),
+                )
+            ).all()
+        )
+        if not memberships:
+            return []
+
+        event_ids = [str(m.event_id) for m in memberships]
+        return list(
+            self.session.exec(
+                select(ActivityLog)
+                .where(col(ActivityLog.event_id).in_(event_ids))
+                .order_by(desc(ActivityLog.created_at))
+                .limit(limit)
+            ).all()
+        )
+

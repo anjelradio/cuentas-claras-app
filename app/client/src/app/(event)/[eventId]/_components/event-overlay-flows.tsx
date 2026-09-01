@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { BottomSheetActionButton } from "@/components/custom/bottom-sheet-action-button"
 import { ReceiptUploadStep } from "@/components/custom/receipt-upload-step"
+import { MyDebtsSheet } from "@/app/home/_components/my-debts-sheet"
 import type {
   DebtSummary,
   EventOverlayState,
@@ -137,35 +138,12 @@ export function EventOverlayFlows({
         </SheetContent>
       </Sheet>
 
-      <Sheet open={openOverlay === "debts"} onOpenChange={(open) => !open && close()}>
-        <SheetContent side="bottom" showCloseButton={false} className="max-h-[90vh] rounded-t-[2rem] border-border bg-overlay-surface p-6 text-headline sm:max-w-2xl">
-          <SheetHeader className="flex-row items-start justify-between p-0">
-            <div>
-              <SheetTitle className="text-2xl text-headline">Mis deudas</SheetTitle>
-              <SheetDescription className="mt-2 text-body/70">Saldos de referencia del evento.</SheetDescription>
-            </div>
-            <SheetClose render={<Button variant="ghost" size="icon-sm" aria-label="Cerrar deudas" />}>
-              <X aria-hidden="true" />
-            </SheetClose>
-          </SheetHeader>
-          <ul className="mt-6 grid gap-3" aria-label="Deudas del evento">
-            {debts.map((debt) => (
-              <li key={debt.id} className="flex items-center justify-between gap-4 rounded-xl border border-border/70 bg-background/40 p-4">
-                <div className="flex items-center gap-3">
-                  <span className={`flex size-10 items-center justify-center rounded-full ${debt.direction === "owed" ? "bg-success/15 text-success" : "bg-error/15 text-error"}`}>
-                    <Users className="size-5" aria-hidden="true" />
-                  </span>
-                  <div>
-                    <p className="font-medium text-headline">{debt.person}</p>
-                    <p className="text-sm text-body/65">{debt.description}</p>
-                  </div>
-                </div>
-                <span className="font-semibold text-headline">{debt.amountLabel}</span>
-              </li>
-            ))}
-          </ul>
-        </SheetContent>
-      </Sheet>
+      <MyDebtsSheet
+        eventId={event.id}
+        open={openOverlay === "debts"}
+        onOpenChange={(open) => !open && close()}
+        trigger={null}
+      />
 
       <Dialog open={openOverlay === "join"} onOpenChange={(open) => !open && close()}>
         <DialogContent showCloseButton={false} className="border-border bg-overlay-surface text-headline sm:max-w-md">

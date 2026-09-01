@@ -15,7 +15,7 @@ from app.modules.events.models.event_member import EventMember
 from app.modules.events.models.user_proxy import User
 from app.modules.events.repositories.event_repository import EventRepository
 from app.modules.events.repositories.member_repository import MemberRepository
-from app.modules.events.services.event_authorization_service import EventAuthorizationService
+from app.modules.events.services.expense_context_service import ExpenseContextService
 from app.modules.expenses.integrations.receipt_storage import ExpenseReceiptStorage, StoredReceipt
 from app.modules.expenses.models.enums import ExpenseCategory, ExpenseSplitType
 from app.modules.expenses.repositories.expense_repository import ExpenseRepository
@@ -60,7 +60,6 @@ def atomicity_setup():
 
     event_repo = EventRepository(session)
     member_repo = MemberRepository(session)
-    auth_service = EventAuthorizationService(event_repo, member_repo)
     activity_service = ActivityService(session)
     expense_repo = ExpenseRepository(session)
     split_repo = ExpenseSplitRepository(session)
@@ -72,8 +71,7 @@ def atomicity_setup():
         expense_repo=expense_repo,
         split_repo=split_repo,
         uow=uow,
-        auth_service=auth_service,
-        member_repo=member_repo,
+        event_context=ExpenseContextService(event_repo, member_repo),
         activity_service=activity_service,
         receipt_storage=mock_storage,
     )
@@ -102,9 +100,9 @@ def test_receipt_cloudinary_fails_before_sql_zero_db_rows(atomicity_setup):
         amount=Decimal("200.00"),
         category=ExpenseCategory.LODGING,
         split_type=ExpenseSplitType.EQUAL,
-        paid_by_member_id=m1.id,
+        payer_participated=True,
         expense_date=datetime.now(UTC),
-        participant_member_ids=[m1.id],
+        participant_member_ids=[],
     )
 
     with pytest.raises(InfrastructureError):
@@ -142,9 +140,9 @@ def test_receipt_sql_fails_triggers_cloudinary_destroy_compensation(atomicity_se
         amount=Decimal("150.00"),
         category=ExpenseCategory.FOOD,
         split_type=ExpenseSplitType.EQUAL,
-        paid_by_member_id=m1.id,
+        payer_participated=True,
         expense_date=datetime.now(UTC),
-        participant_member_ids=[m1.id],
+        participant_member_ids=[],
     )
 
     img_bytes = create_test_image_bytes()

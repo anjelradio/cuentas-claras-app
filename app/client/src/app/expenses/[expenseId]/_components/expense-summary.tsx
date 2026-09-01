@@ -1,17 +1,23 @@
+"use client"
+
 import * as React from "react"
 import Link from "next/link"
-import { Pencil, Trash2 } from "lucide-react"
+import { CheckCircle2, Clock, Pencil, Trash2 } from "lucide-react"
 
 import { Button, buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { EXPENSE_CATEGORIES } from "@/app/expenses/_types/expense"
 import type { ExpenseCategory, ExpenseDetail } from "@/app/expenses/_types/expense"
 import { ExpenseReceiptSheet } from "./expense-receipt-sheet"
+import { SettleExpenseSheet } from "./settle-expense-sheet"
 
 interface ExpenseSummaryProps {
   expense: ExpenseDetail
   onCancel: () => void
+  autoOpenPay?: boolean
   onReceiptUpdated?: () => void
+  onPaymentUpdated?: () => void
+  onClosePay?: () => void
 }
 
 function getCategoryInfo(category: ExpenseCategory) {
@@ -21,14 +27,25 @@ function getCategoryInfo(category: ExpenseCategory) {
   )
 }
 
-/** Resume el gasto seleccionado y expone sus acciones de edición y anulación. */
+/** Resume el gasto seleccionado y expone sus acciones de edición o saldar deuda según el rol del usuario. */
 export function ExpenseSummary({
   expense,
   onCancel,
+  autoOpenPay,
   onReceiptUpdated,
+  onPaymentUpdated,
+  onClosePay,
 }: ExpenseSummaryProps) {
   const category = getCategoryInfo(expense.category)
   const formattedAmount = `Bs. ${Number.parseFloat(String(expense.amount)).toFixed(2)}`
+  const formattedRefund = `Bs. ${Number.parseFloat(String(expense.refund_amount)).toFixed(2)}`
+  const formattedContribution = `Bs. ${Number.parseFloat(String(expense.payer_contribution)).toFixed(2)}`
+
+  const isPayer = expense.is_payer
+  const mySplit = expense.current_user_split
+  const mySplitAmount = mySplit
+    ? `Bs. ${Number.parseFloat(String(mySplit.assigned_amount)).toFixed(2)}`
+    : null
 
   return (
     <section>
@@ -56,24 +73,62 @@ export function ExpenseSummary({
         </div>
       </header>
 
-      {/* Botones de acción: Editar y Anular */}
-      <div className="mt-4 grid grid-cols-2 gap-4">
-        <Link
-          href={`/expenses/${expense.id}/edit`}
-          className={cn(buttonVariants({ variant: "outline" }), "h-12 rounded-xl border-border bg-background/50 hover:bg-white/10")}
-        >
-          <Pencil className="mr-1 size-4" aria-hidden="true" />
-          Editar gasto
-        </Link>
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-12 rounded-xl border border-error/20 text-error hover:bg-error/10 hover:text-error"
-          onClick={onCancel}
-        >
-          <Trash2 className="mr-1 size-4" aria-hidden="true" />
-          Anular gasto
-        </Button>
+      {/* Botones de acción condicionales */}
+      <div className="mt-4 flex flex-col gap-4">
+        {/* Caso Pagador: Editar y Anular */}
+        {isPayer && (
+          <div className="grid grid-cols-2 gap-4">
+            <Link
+              href={`/expenses/${expense.id}/edit`}
+              className={cn(buttonVariants({ variant: "outline" }), "h-12 rounded-xl border-border bg-background/50 hover:bg-white/10")}
+            >
+              <Pencil className="mr-1 size-4" aria-hidden="true" />
+              Editar gasto
+            </Link>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-12 rounded-xl border border-error/20 text-error hover:bg-error/10 hover:text-error"
+              onClick={onCancel}
+            >
+              <Trash2 className="mr-1 size-4" aria-hidden="true" />
+              Anular gasto
+            </Button>
+          </div>
+        )}
+
+        {/* Caso Deudor: Botón Saldar mi parte */}
+        {!isPayer && mySplit && mySplitAmount && (
+          <div className="flex flex-col gap-2">
+            {mySplit.payment_status === "confirmed" ? (
+              <div className="flex items-center justify-center gap-2 rounded-2xl border border-success/20 bg-success/10 py-4 text-sm font-semibold text-success shadow-inner">
+                <CheckCircle2 className="size-5" />
+                Tu parte ({mySplitAmount}) está confirmada y saldada
+              </div>
+            ) : mySplit.payment_status === "pending_confirmation" ? (
+              <div className="flex items-center justify-center gap-2 rounded-2xl border border-warning/20 bg-warning/10 py-4 text-sm font-semibold text-warning shadow-inner">
+                <Clock className="size-5" />
+                Tu pago ({mySplitAmount}) está pendiente de confirmación por {expense.paid_by_member_name}
+              </div>
+            ) : (
+              <>
+                {mySplit.payment_status === "rejected" && (
+                  <p className="text-center text-xs text-error">
+                    Tu declaración de pago anterior fue rechazada. Puedes volver a intentarlo.
+                  </p>
+                )}
+                <SettleExpenseSheet
+                  expenseId={expense.id}
+                  splitId={mySplit.id}
+                  amount={mySplitAmount}
+                  autoOpen={autoOpenPay}
+                  onPaymentDeclared={onPaymentUpdated}
+                  onClose={onClosePay}
+                />
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tarjeta de comprobante digital */}
@@ -95,6 +150,14 @@ export function ExpenseSummary({
           <div className="mt-4 flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Monto total</span>
             <strong className="text-headline text-base font-bold">{formattedAmount}</strong>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Devolución esperada</span>
+            <strong className="text-primary text-base font-bold">{formattedRefund}</strong>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Aporte personal</span>
+            <strong className="text-headline text-base font-bold">{formattedContribution}</strong>
           </div>
         </div>
       </section>

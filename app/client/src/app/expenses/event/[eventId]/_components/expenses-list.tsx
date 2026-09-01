@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { CircleDollarSign, Plus, Receipt } from "lucide-react"
+import { CircleDollarSign, Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -29,6 +29,10 @@ function getCategoryInfo(category: ExpenseCategory) {
     EXPENSE_CATEGORIES.find((item) => item.id === category) ??
     EXPENSE_CATEGORIES[0]
   )
+}
+
+function getSplitTypeLabel(splitType: ExpenseSummary["split_type"]) {
+  return splitType === "exact" ? "Montos exactos" : "División equitativa"
 }
 
 /** Interacción cliente del listado funcional de gastos con filtros reales. */
@@ -89,7 +93,7 @@ export function ExpensesList({ eventId, initialExpenses = [] }: ExpensesListProp
         <Button
           type="button"
           onClick={() => setIsUploadSheetOpen(true)}
-          className="h-10 rounded-xl bg-action-orange px-4 text-xs font-semibold text-action-orange-foreground shadow hover:bg-action-orange/90 sm:text-sm"
+          className="h-10 w-full rounded-xl bg-action-orange px-4 text-xs font-semibold text-action-orange-foreground shadow hover:bg-action-orange/90 sm:w-auto sm:text-sm"
         >
           <Plus className="mr-1 size-4" />
           Registrar gasto
@@ -110,9 +114,9 @@ export function ExpensesList({ eventId, initialExpenses = [] }: ExpensesListProp
               <Link
                 key={expense.id}
                 href={`/expenses/${expense.id}`}
-                className="group flex flex-col gap-4 rounded-2xl border border-white/5 bg-surface/80 p-4 shadow-xl transition-all hover:-translate-y-0.5 hover:bg-headline/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-row sm:items-center sm:gap-5 sm:p-5"
+                className="group grid gap-4 rounded-2xl border border-white/5 bg-surface/80 p-4 shadow-xl transition-all hover:-translate-y-0.5 hover:bg-headline/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6 sm:p-5"
               >
-                <div className="flex w-full items-center gap-4 sm:flex-1">
+                <div className="flex min-w-0 items-start gap-4">
                   <span
                     className="flex size-12 shrink-0 items-center justify-center rounded-full bg-headline/5 text-2xl shadow-inner transition-transform group-hover:scale-110 sm:size-14 sm:text-3xl"
                     aria-hidden="true"
@@ -120,30 +124,22 @@ export function ExpensesList({ eventId, initialExpenses = [] }: ExpensesListProp
                     {category.emoji}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <span className="mb-1 block truncate text-base font-semibold text-headline sm:text-lg">
+                    <span className="block break-words text-base font-semibold leading-snug text-headline sm:text-lg">
                       {expense.name}
                     </span>
-                    <span className="block truncate text-xs text-muted-foreground sm:text-sm">
-                      {expense.description || category.label}
+                    <span className="mt-1 block text-xs text-muted-foreground sm:text-sm">
+                      Pagó <strong className="font-semibold text-headline">{expense.paid_by_member_name}</strong>
                     </span>
                   </div>
                 </div>
 
-                <div className="flex w-full shrink-0 flex-row items-center justify-between border-t border-white/5 pt-3 sm:w-auto sm:flex-col sm:items-end sm:gap-1.5 sm:border-0 sm:pt-0">
+                <div className="flex w-full items-center justify-between gap-4 border-t border-white/5 pt-3 sm:min-w-[150px] sm:flex-col sm:items-end sm:gap-1.5 sm:border-0 sm:pt-0">
                   <span className="font-heading text-lg font-bold text-headline sm:text-xl">
                     {formattedAmount}
                   </span>
-                  <div className="flex items-center gap-2">
-                    {expense.has_receipt && (
-                      <span className="flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
-                        <Receipt className="size-3" />
-                        Comprobante
-                      </span>
-                    )}
-                    <span className="text-[11px] text-muted-foreground">
-                      Por: <strong className="text-white">{expense.paid_by_member_name}</strong>
-                    </span>
-                  </div>
+                  <span className="text-xs font-medium text-primary sm:text-sm">
+                    {getSplitTypeLabel(expense.split_type)}
+                  </span>
                 </div>
               </Link>
             )
@@ -174,7 +170,7 @@ export function ExpensesList({ eventId, initialExpenses = [] }: ExpensesListProp
             <Button
               type="button"
               onClick={() => setIsUploadSheetOpen(true)}
-              className="rounded-xl bg-action-orange text-action-orange-foreground hover:bg-action-orange/90"
+              className="w-full rounded-xl bg-action-orange text-action-orange-foreground hover:bg-action-orange/90 sm:w-auto"
             >
               Registrar primer gasto
             </Button>

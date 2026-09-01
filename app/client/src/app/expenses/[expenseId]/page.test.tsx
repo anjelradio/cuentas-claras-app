@@ -19,6 +19,9 @@ describe("ExpenseDetailView", () => {
     name: "Cena en el puerto",
     description: "Mariscos frescos",
     amount: "120.00",
+    refund_amount: "60.00",
+    payer_contribution: "60.00",
+    payer_participated: true,
     category: "food",
     split_type: "equal",
     expense_date: "2026-08-18T12:00:00Z",
@@ -27,6 +30,7 @@ describe("ExpenseDetailView", () => {
     created_by_member_name: "Ana López",
     paid_by_member_id: "33333333-3333-3333-3333-333333333333",
     paid_by_member_name: "Ana López",
+    is_payer: true,
     created_at: "2026-08-18T12:00:00Z",
     updated_at: "2026-08-18T12:00:00Z",
     splits: [
@@ -35,12 +39,14 @@ describe("ExpenseDetailView", () => {
         member_id: "33333333-3333-3333-3333-333333333333",
         member_name: "Ana López",
         assigned_amount: "60.00",
+        payment_status: "no_payment",
       },
       {
         id: "55555555-5555-5555-5555-555555555555",
         member_id: "66666666-6666-6666-6666-666666666666",
         member_name: "Carlos Ruiz",
         assigned_amount: "60.00",
+        payment_status: "no_payment",
       },
     ],
   }
