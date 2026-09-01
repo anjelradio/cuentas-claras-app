@@ -1,14 +1,22 @@
-import { getExpenseForDisplay } from "@/app/expenses/_types/expense-demo"
+import { getCachedEventDetail } from "@/app/(event)/_services/server-event-api"
+import { getCachedExpenseDetail } from "../_services/server-expense-api"
 import { ExpenseDetailView } from "./_components/expense-detail-view"
 
 interface ExpenseDetailPageProps {
   params: Promise<{ expenseId: string }>
 }
 
-/** Ruta de servidor que resuelve el gasto estático antes de montar sus acciones cliente. */
+/** Server Component que resuelve el detalle real del gasto y el nombre del evento. */
 export default async function ExpenseDetailPage({ params }: ExpenseDetailPageProps) {
   const { expenseId } = await params
-  const expense = getExpenseForDisplay(expenseId)
+  const expense = await getCachedExpenseDetail(expenseId)
+  const event = await getCachedEventDetail(expense.event_id).catch(() => null)
 
-  return <ExpenseDetailView eventId={expense.eventId} expense={expense} />
+  return (
+    <ExpenseDetailView
+      eventId={expense.event_id}
+      expense={expense}
+      eventName={event?.name ?? "Evento"}
+    />
+  )
 }

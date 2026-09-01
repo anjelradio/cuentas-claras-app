@@ -33,6 +33,7 @@
     "zod": "^4.5.1"
   },
   "devDependencies": {
+    "@tailwindcss/oxide-win32-x64-msvc": "^4.3.3",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
@@ -46,6 +47,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
     "jsdom": "^30.0.1",
+    "lightningcss-win32-x64-msvc": "^1.32.0",
     "server-only": "^0.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",

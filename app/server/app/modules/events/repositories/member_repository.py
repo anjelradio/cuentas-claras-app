@@ -17,6 +17,13 @@ class MemberRepository:
         self.session.refresh(member)
         return member
 
+    def get_by_id(self, member_id: UUID) -> EventMember | None:
+        statement = select(EventMember).where(
+            EventMember.id == member_id,
+            EventMember.deleted_at.is_(None),
+        )
+        return self.session.exec(statement).first()
+
     def get_by_event_and_user(self, event_id: UUID, user_id: str) -> EventMember | None:
         statement = select(EventMember).where(
             EventMember.event_id == event_id,

@@ -27,6 +27,7 @@ export interface EventSummary extends EventSummarySchema {
 export type EventRead = EventReadSchema
 
 export interface EventMemberInfo extends EventMemberInfoSchema {
+  id?: string;
   user_id: string;
   name: string;
   email: string;
