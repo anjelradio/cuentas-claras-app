@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import { UserRound } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -31,14 +32,15 @@ export function HomeHeader({ user }: { user: { name: string; email: string; imag
     <header className="glass-panel backdrop-blur-[20px] rounded-[20px] flex justify-between items-center py-4 px-5 md:px-8 top-4 z-40 fixed w-[calc(100%-2rem)] max-w-5xl mx-auto left-0 right-0">
       {/* Logo & Branding */}
       <Link href="/home" className="flex items-center gap-3 cursor-pointer">
-        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white overflow-hidden">
-          <img 
-            alt="Cuentas Claras Logo" 
-            className="w-full h-full object-cover rounded-xl" 
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8zuhBAw92hsIizvZm_XNIUL7Xp2AMrJSzwiTVQ89JSqhRZAt1PhWXdu5JhSIeviLe1EGHp7q4Pc2xixgWgKihbl3f5ojV362kaRO903K_TMCumHfd09937nyWu2j-cuo03KknzY1rLuqZ0TKPvSmMW-QQs8qrWjtzdAlOC1W2ci3pssskpfAGFLVRe2FT9z0wCZYpePBZ9ej72LjYlf7X8lMaBCjy8tw0ltpZzKVSqhfFU-gLU_gnjtNGqhEHN1qUj5M"
-          />
-        </div>
-        <h1 className="text-xl font-semibold tracking-wide text-white">Cuentas Claras</h1>
+        <Image 
+          src="/logo.png"
+          alt="Cuentas Claras Logo" 
+          width={40}
+          height={40}
+          priority
+          className="size-10 object-contain" 
+        />
+        <h1 className="hidden sm:block text-xl font-semibold tracking-wide text-white">Cuentas Claras</h1>
       </Link>
       
       {/* User Profile & Actions */}

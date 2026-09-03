@@ -9,6 +9,11 @@ import { buildJoinPath, buildLoginPath } from "@/lib/auth-redirect"
  */
 export function proxy(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl
+
+  if (/\.(?:png|jpg|jpeg|gif|webp|svg|ico)$/i.test(pathname)) {
+    return NextResponse.next()
+  }
+
   const hasSession = Boolean(getSessionCookie(request))
   const isAuthRoute = pathname.startsWith("/auth")
   const invitationToken = request.nextUrl.searchParams.get("redirect")
@@ -34,5 +39,5 @@ export function proxy(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 }

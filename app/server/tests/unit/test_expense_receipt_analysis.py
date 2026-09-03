@@ -114,6 +114,38 @@ def test_gemini_analyzer_mock_product_photo():
     assert result.expense_date is None
 
 
+def test_gemini_analyzer_fallback_chain():
+    settings = Settings(gemini_api_key="fake-key", gemini_model="gemini-3.8-flash")
+    analyzer = GeminiReceiptAnalyzer(settings)
+    analyzer.client = MagicMock()
+
+    mock_success_response = MagicMock()
+    mock_success_response.text = '{"is_receipt": true, "name": "Almuerzo de trabajo", "amount": 120.50, "category": "food"}'
+
+    # Primer intento falla con error 503, segundo intento tiene éxito
+    analyzer.client.models.generate_content.side_effect = [
+        Exception("503 UNAVAILABLE"),
+        mock_success_response,
+    ]
+
+    result = analyzer.analyze_image_bytes(
+        image_bytes=b"fake_image",
+        mime_type="image/jpeg",
+        image_url="https://res.cloudinary.com/test/image.jpg",
+    )
+
+    assert result.is_receipt is True
+    assert result.name == "Almuerzo de trabajo"
+    assert result.amount == Decimal("120.50")
+    assert analyzer.client.models.generate_content.call_count == 2
+    # Comprobar que el primer llamado fue con gemini-3.8-flash y el segundo con el siguiente fallback
+    first_call_model = analyzer.client.models.generate_content.call_args_list[0].kwargs["model"]
+    second_call_model = analyzer.client.models.generate_content.call_args_list[1].kwargs["model"]
+    assert first_call_model == "gemini-3.8-flash"
+    assert second_call_model == analyzer.models_to_try[1]
+
+
+
 def test_expense_service_analyze_receipt(session, setup_data):
     event, member = setup_data
 

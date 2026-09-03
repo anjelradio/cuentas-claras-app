@@ -35,4 +35,9 @@ describe("protección de rutas", () => {
       "http://localhost:3000/join?redirect=invite-token",
     )
   })
+
+  it("permite el acceso a recursos estáticos sin sesión", () => {
+    const response = proxy(new NextRequest("http://localhost:3000/logo.png"))
+    expect(response.headers.get("location")).toBeNull()
+  })
 })

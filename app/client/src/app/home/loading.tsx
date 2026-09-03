@@ -7,7 +7,7 @@ export default function HomeLoading() {
       <header className="glass-panel rounded-[20px] flex justify-between items-center py-4 px-5 md:px-8 top-4 z-40 fixed w-[calc(100%-2rem)] max-w-5xl mx-auto left-0 right-0">
         <div className="flex items-center gap-3">
           <Skeleton className="w-10 h-10 rounded-xl" />
-          <Skeleton className="h-6 w-32 rounded-md" />
+          <Skeleton className="h-6 w-32 rounded-md hidden sm:block" />
         </div>
         <div className="flex items-center gap-6">
           <div className="text-right hidden sm:block">

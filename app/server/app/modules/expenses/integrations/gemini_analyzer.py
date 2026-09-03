@@ -51,10 +51,23 @@ Rules:
 """
 
 
+FALLBACK_GEMINI_MODELS = [
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-2.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-2.0-flash-lite",
+]
+
+
 class GeminiReceiptAnalyzer:
     def __init__(self, settings: Settings):
         self.api_key = settings.gemini_api_key
-        self.model = settings.gemini_model or "gemini-2.0-flash-lite"
+        primary = settings.gemini_model or "gemini-3.8-flash"
+        # Lista ordenada de mayor a menor capacidad, priorizando el modelo configurado
+        self.models_to_try = [primary] + [m for m in FALLBACK_GEMINI_MODELS if m != primary]
         self.client = genai.Client(api_key=self.api_key) if self.api_key else None
 
     def analyze_image_bytes(
@@ -78,34 +91,51 @@ class GeminiReceiptAnalyzer:
 
         try:
             image_part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
-            
-            # Intento con el modelo configurado
-            try:
-                response = self.client.models.generate_content(
-                    model=self.model,
-                    contents=[image_part, GEMINI_RECEIPT_PROMPT],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        temperature=0.1,
-                    ),
-                )
-            except Exception as model_err:
-                logger.warning(
-                    "Fallo al invocar modelo %s (%s). Intentando con fallback gemini-1.5-flash...",
-                    self.model,
-                    model_err,
-                )
-                response = self.client.models.generate_content(
-                    model="gemini-1.5-flash",
-                    contents=[image_part, GEMINI_RECEIPT_PROMPT],
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        temperature=0.1,
-                    ),
-                )
+            content_config = types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.1,
+                automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            )
 
-            if not response.text:
-                logger.warning("Gemini retornó una respuesta vacía.")
+            response = None
+            last_error = None
+
+            for i, model_name in enumerate(self.models_to_try):
+                try:
+                    response = self.client.models.generate_content(
+                        model=model_name,
+                        contents=[image_part, GEMINI_RECEIPT_PROMPT],
+                        config=content_config,
+                    )
+                    if response and response.text:
+                        logger.info("Análisis de recibo exitoso con el modelo Gemini: %s", model_name)
+                        break
+                except Exception as model_err:
+                    last_error = model_err
+                    next_model = (
+                        self.models_to_try[i + 1]
+                        if i + 1 < len(self.models_to_try)
+                        else None
+                    )
+                    if next_model:
+                        logger.warning(
+                            "Fallo al invocar modelo %s (%s). Intentando con el siguiente modelo (%s)...",
+                            model_name,
+                            model_err,
+                            next_model,
+                        )
+                    else:
+                        logger.error(
+                            "Fallo al invocar modelo %s (%s). Se agotaron todos los modelos en la lista de fallback.",
+                            model_name,
+                            model_err,
+                        )
+
+            if not response or not response.text:
+                if last_error:
+                    logger.warning("No se pudo obtener respuesta de ningún modelo Gemini: %s", last_error)
+                else:
+                    logger.warning("Gemini retornó una respuesta vacía.")
                 return ReceiptAnalysisResponse(
                     image_url=image_url,
                     receipt_public_id=receipt_public_id,
