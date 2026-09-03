@@ -8,6 +8,7 @@ import { toast } from "sonner"
 
 import { authClient } from "@/lib/auth-client"
 import { getAuthErrorMessage } from "@/lib/auth-errors"
+import { NotificationsBell } from "@/features/notifications/components/notifications-bell"
 
 export function HomeHeader({ user }: { user: { name: string; email: string; image?: string | null } }) {
   const router = useRouter()
@@ -42,7 +43,8 @@ export function HomeHeader({ user }: { user: { name: string; email: string; imag
       </Link>
       
       {/* User Profile & Actions */}
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-4 sm:gap-6">
+        <NotificationsBell />
         <div className="text-right hidden sm:block">
           <p className="font-medium text-sm text-white">{user.name}</p>
           <p className="text-xs text-[#bd7aff]">Mi perfil</p>

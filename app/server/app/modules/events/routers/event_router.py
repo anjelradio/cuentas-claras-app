@@ -1,11 +1,14 @@
-from typing import Annotated
+import io
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi.responses import StreamingResponse
 
 from app.core.security import get_current_user
 from app.modules.events.dependencies import (
     get_event_service,
+    get_export_service,
     get_invitation_service,
     get_member_service,
     get_qr_service,
@@ -23,6 +26,7 @@ from app.modules.events.schemas.event_schemas import (
 from app.modules.events.schemas.invitation_schemas import EventInvitationRead
 from app.modules.events.schemas.member_schemas import JoinEventRequest, MemberRead
 from app.modules.events.schemas.qr_schemas import MyQrRead
+from app.modules.events.services.event_export_service import EventExportService
 from app.modules.events.services.event_service import EventService
 from app.modules.events.services.invitation_service import InvitationService
 from app.modules.events.services.member_service import MemberService
@@ -36,6 +40,7 @@ EventServiceDep = Annotated[EventService, Depends(get_event_service)]
 MemberServiceDep = Annotated[MemberService, Depends(get_member_service)]
 InvitationServiceDep = Annotated[InvitationService, Depends(get_invitation_service)]
 QrServiceDep = Annotated[QrService, Depends(get_qr_service)]
+ExportServiceDep = Annotated[EventExportService, Depends(get_export_service)]
 
 
 @router.post("", response_model=EventRead, status_code=201)
@@ -72,6 +77,20 @@ def join_event(request: JoinEventRequest, user_id: UserDep, service: MemberServi
 def get_event_statistics(event_id: UUID, user_id: UserDep, service: EventServiceDep):
     return service.get_event_statistics(event_id, user_id)
 
+
+@router.get("/{event_id}/export")
+def export_event_report(
+    event_id: UUID,
+    user_id: UserDep,
+    service: ExportServiceDep,
+    format: Literal["csv", "pdf"] = Query(..., description="Formato del archivo exportado (csv o pdf)"),
+):
+    file_bytes, content_type, filename = service.generate_report(event_id, user_id, format)
+    return StreamingResponse(
+        io.BytesIO(file_bytes),
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{event_id}", response_model=EventDetailRead)

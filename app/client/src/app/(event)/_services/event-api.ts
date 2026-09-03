@@ -153,5 +153,56 @@ export const EventApi = {
     body.set("file", file);
     const res = await fetch(`${API_BASE}/events/${eventId}/my-qr`, { method: "PUT", headers: await getHeaders(false), body });
     return myQrSchema.parse(await handleResponse<unknown>(res));
+  },
+
+  async downloadReport(eventId: string, format: "csv" | "pdf"): Promise<void> {
+    return downloadEventReport(eventId, format);
   }
 };
+
+/**
+ * Descarga el reporte consolidado del evento en formato CSV o PDF.
+ * Solicita el blob binario autenticado y dispara la descarga en el navegador.
+ */
+export async function downloadEventReport(eventId: string, format: "csv" | "pdf"): Promise<void> {
+  const headers = await getHeaders(false);
+  const res = await fetch(`${API_BASE}/events/${eventId}/export?format=${format}`, {
+    method: "GET",
+    headers,
+  });
+
+  if (!res.ok) {
+    let errorMessage = `Error al exportar el reporte (${res.status})`;
+    try {
+      const errorData = await res.json();
+      const parsed = errorSchema.safeParse(errorData);
+      if (parsed.success) {
+        errorMessage = parsed.data.message;
+      }
+    } catch {
+      // Ignorar fallo al parsear json de error
+    }
+    throw new Error(errorMessage);
+  }
+
+  // Extraer nombre del archivo del header Content-Disposition si está disponible
+  let filename = `reporte-evento.${format}`;
+  const disposition = res.headers.get("content-disposition");
+  if (disposition) {
+    const match = disposition.match(/filename="?([^";]+)"?/i);
+    if (match?.[1]) {
+      filename = match[1].trim();
+    }
+  }
+
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.setAttribute("download", filename);
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(blobUrl);
+}

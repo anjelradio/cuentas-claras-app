@@ -12,12 +12,13 @@ dependencies = [
   "cloudinary>=1.46",
   "Pillow>=12.3",
   "fastapi[standard]>=0.115",
+  "google-genai>=2.21",
   "psycopg[binary]>=3.2",
   "pydantic-settings>=2.6",
   "pyjwt[crypto]>=2.10",
+  "reportlab>=4.2",
   "sqlalchemy>=2.0",
   "sqlmodel>=0.0.22",
-  "google-genai>=2.21",
 ]
 
 [project.optional-dependencies]

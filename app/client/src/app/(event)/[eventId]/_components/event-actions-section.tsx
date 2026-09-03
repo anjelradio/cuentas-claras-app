@@ -12,6 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import type { DebtSummary, EventOverlayState, EventView, InvitationOption } from "../../_types/event-home-types"
 import { EventOverlayFlows } from "./event-overlay-flows"
 import { EventApi } from "../../_services/event-api"
+import { EventExportButton } from "./event-export-button"
 import { QrSheet } from "./qr-sheet"
 import { ReceiptUploadSheet } from "./receipt-upload-sheet"
 
@@ -23,6 +24,7 @@ interface EventActionsSectionProps {
   invitations?: InvitationOption[]
   debts?: DebtSummary[]
   qrImage?: string | null
+  exportAction?: React.ReactNode
 }
 
 export function EventActionsSection({
@@ -30,7 +32,8 @@ export function EventActionsSection({
   invitations = [],
   debts = [],
   qrImage = null,
-  isOwner = false
+  isOwner = false,
+  exportAction,
 }: EventActionsSectionProps & { isOwner?: boolean }) {
   const [openOverlay, setOpenOverlay] = React.useState<EventOverlayState | null>(null)
   const [isQrOpen, setIsQrOpen] = React.useState(false)
@@ -58,12 +61,14 @@ export function EventActionsSection({
     <section aria-labelledby="event-actions-title" className="grid gap-4">
       <div className="flex items-center justify-between gap-3">
         <h2 id="event-actions-title" className="text-lg font-semibold text-headline">Acciones del evento</h2>
-        {isOwner && (
-          <div className="hidden items-center gap-3 sm:flex">
-            {isOpen && <Link href={`/${event.id}/edit-event`} className="inline-flex h-8 items-center gap-1 px-0 text-xs font-semibold uppercase tracking-wider text-tertiary transition-colors hover:text-tertiary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              <Pencil className="size-3.5" aria-hidden="true" />
-              Editar evento
-            </Link>}
+        <div className="flex items-center gap-2.5">
+          {exportAction ?? <EventExportButton eventId={event.id} />}
+          {isOwner && (
+            <div className="hidden items-center gap-3 sm:flex">
+              {isOpen && <Link href={`/${event.id}/edit-event`} className="inline-flex h-8 items-center gap-1 px-0 text-xs font-semibold uppercase tracking-wider text-tertiary transition-colors hover:text-tertiary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <Pencil className="size-3.5" aria-hidden="true" />
+                Editar evento
+              </Link>}
             <AlertDialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
               <AlertDialogTrigger render={<button type="button" disabled={isChangingStatus} className="inline-flex h-8 items-center gap-1 px-0 text-xs font-semibold uppercase tracking-wider text-error transition-colors hover:text-error/80 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" />}>
                 <XCircle className="size-3.5" aria-hidden="true" />
@@ -83,6 +88,7 @@ export function EventActionsSection({
             </AlertDialog>
           </div>
         )}
+        </div>
       </div>
 
       <div className="sr-only" aria-label="Flujos adicionales de presentación">

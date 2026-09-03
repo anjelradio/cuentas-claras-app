@@ -3,6 +3,7 @@
 from sqlmodel import SQLModel
 
 from app.modules.activity.models.activity import ActivityLog
+from app.modules.activity.models.activity_read_receipt import ActivityReadReceipt
 from app.modules.events.models.enums import EventStatus, MemberStatus
 from app.modules.events.models.event import Event
 from app.modules.events.models.event_invitation import EventInvitation
@@ -27,6 +28,7 @@ __all__ = [
     "EventInvitation",
     "QrAssetCleanup",
     "ActivityLog",
+    "ActivityReadReceipt",
     "ExpenseCategory",
     "ExpenseSplitType",
     "Expense",

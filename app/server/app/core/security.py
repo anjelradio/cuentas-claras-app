@@ -9,7 +9,6 @@ import jwt
 from fastapi import Header
 from jwt import PyJWK, PyJWKClient
 from jwt.exceptions import InvalidTokenError, PyJWKClientError
-from jwt.types import Options
 
 from app.core.config import Settings
 from app.core.errors import AuthenticationError

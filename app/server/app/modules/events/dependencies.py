@@ -57,3 +57,13 @@ def get_expense_context_service(session: SessionDep) -> ExpenseContextService:
     """Expone la colaboración autorizada que Expenses necesita de Events."""
     events, members, _, _, _ = repositories(session)
     return ExpenseContextService(events, members)
+
+
+from app.modules.events.repositories.export_repository import ExportRepository
+from app.modules.events.services.event_export_service import EventExportService
+
+
+def get_export_service(session: SessionDep) -> EventExportService:
+    events, members, _, _, _ = repositories(session)
+    export_repo = ExportRepository(session)
+    return EventExportService(export_repo, events, members)

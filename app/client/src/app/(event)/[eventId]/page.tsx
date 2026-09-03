@@ -1,4 +1,5 @@
 import { EventActionsSection } from "./_components/event-actions-section"
+import { EventExportButton } from "./_components/event-export-button"
 import { EventStatisticsCard } from "./_components/event-statistics-card"
 import { RecentActivitiesCard } from "./_components/recent-activities-card"
 import { RecentExpensesCard } from "./_components/recent-expenses-card"
@@ -76,6 +77,7 @@ export default async function EventHomePage({ params }: EventHomePageProps) {
           ]}
           debts={[]}
           qrImage={qrImage}
+          exportAction={<EventExportButton eventId={event.id} />}
         />
         <EventStatisticsCard statistics={statisticsData} />
       </div>
