@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.modules.expenses.models.expense import Expense
 
@@ -38,6 +38,19 @@ class ExpenseRepository:
         query = (
             select(Expense)
             .where(Expense.event_id == event_id, Expense.deleted_at.is_(None))
+            .order_by(Expense.expense_date.desc(), Expense.created_at.desc())
+        )
+        return list(self.session.exec(query).all())
+
+    def list_by_event_ids(self, event_ids: list[UUID]) -> list[Expense]:
+        if not event_ids:
+            return []
+        query = (
+            select(Expense)
+            .where(
+                col(Expense.event_id).in_(event_ids),
+                Expense.deleted_at.is_(None),
+            )
             .order_by(Expense.expense_date.desc(), Expense.created_at.desc())
         )
         return list(self.session.exec(query).all())
