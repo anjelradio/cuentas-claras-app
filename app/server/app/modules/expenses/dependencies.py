@@ -13,6 +13,7 @@ from app.modules.expenses.repositories.expense_repository import ExpenseReposito
 from app.modules.expenses.repositories.expense_split_repository import ExpenseSplitRepository
 from app.modules.expenses.repositories.unit_of_work import ExpenseUnitOfWork
 from app.modules.expenses.services.expense_service import ExpenseService
+from app.modules.payments.repositories.payment_repository import PaymentRepository
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
@@ -39,4 +40,5 @@ def get_expense_service(session: SessionDep) -> ExpenseService:
         activity_service=activity_service,
         receipt_storage=receipt_storage,
         gemini_analyzer=gemini_analyzer,
+        payment_repo=PaymentRepository(session),
     )

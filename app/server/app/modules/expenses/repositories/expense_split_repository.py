@@ -1,7 +1,8 @@
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import UUID
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from app.modules.expenses.models.expense_split import ExpenseSplit
 
@@ -26,6 +27,16 @@ class ExpenseSplitRepository:
         query = select(ExpenseSplit).where(
             ExpenseSplit.expense_id == expense_id,
             ExpenseSplit.deleted_at.is_(None),
+        )
+        return list(self.session.exec(query).all())
+
+    def list_active_by_expense_ids(self, expense_ids: list[UUID]) -> list[ExpenseSplit]:
+        if not expense_ids:
+            return []
+        query = select(ExpenseSplit).where(
+            col(ExpenseSplit.expense_id).in_(expense_ids),
+            ExpenseSplit.deleted_at.is_(None),
+            ExpenseSplit.assigned_amount > Decimal("0.00"),
         )
         return list(self.session.exec(query).all())
 

@@ -2,22 +2,15 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Eye, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
 import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
-import { EXPENSE_CATEGORIES } from "@/app/expenses/_types/expense"
 import type { ExpenseCategory, ExpenseDetail, ExpenseSplitType } from "@/app/expenses/_types/expense"
 import { ExpenseApi } from "../_services/expense-api"
+import { ExpenseCategorySelector } from "./expense-category-selector"
+import { ExpenseReceiptViewer } from "./expense-receipt-viewer"
+import { ExpenseSplitModeSelector } from "./expense-split-mode-selector"
 import { ExpenseParticipantsSheet, type EventMemberOption } from "./expense-participants-sheet"
 
 interface ExpenseFormProps {
@@ -74,18 +67,16 @@ export function ExpenseForm({
         : new Date().toISOString().slice(0, 10)
   )
 
-  const [receiptFile, setReceiptFile] = React.useState<File | null>(null)
-  const [receiptUrl, setReceiptUrl] = React.useState<string | null>(
+  const [receiptFile] = React.useState<File | null>(null)
+  const [receiptUrl] = React.useState<string | null>(
     expense?.receipt_url ?? initialValues?.receipt_url ?? null
   )
-  const [receiptPreview, setReceiptPreview] = React.useState<string | null>(
+  const [receiptPreview] = React.useState<string | null>(
     expense?.receipt_url ?? initialValues?.receipt_url ?? null
   )
-  const [receiptPublicId, setReceiptPublicId] = React.useState<string | null>(null)
-  const [isImageSheetOpen, setIsImageSheetOpen] = React.useState(false)
+  const [receiptPublicId] = React.useState<string | null>(null)
 
-  // Cargar datos pre-llenados por IA desde sessionStorage al crear.
-  // Este efecto sincroniza una fuente externa (sessionStorage) con el formulario.
+  // Cargar datos pre-llenados por IA desde sessionStorage al crear
   /* eslint-disable react-hooks/set-state-in-effect */
   React.useEffect(() => {
     if (mode === "create") {
@@ -98,50 +89,42 @@ export function ExpenseForm({
           if (data.amount) setAmount((prev) => prev || String(data.amount))
           if (
             data.category &&
-            EXPENSE_CATEGORIES.some((c) => c.id === data.category)
+            ["food", "transport", "lodging", "entertainment", "services", "shopping", "other"].includes(
+              data.category
+            )
           ) {
             setCategory(data.category as ExpenseCategory)
           }
           if (data.expense_date) {
-            try {
-              const dateStr = new Date(data.expense_date)
-                .toISOString()
-                .slice(0, 10)
-              setExpenseDate(dateStr)
-            } catch {}
-          }
-          if (data.image_url) {
-            setReceiptUrl(data.image_url)
-            setReceiptPreview(data.image_url)
-          }
-          if (data.receipt_public_id) {
-            setReceiptPublicId(data.receipt_public_id)
+            const parsed = new Date(data.expense_date)
+            if (!Number.isNaN(parsed.getTime())) {
+              setExpenseDate(parsed.toISOString().slice(0, 10))
+            }
           }
         }
-      } catch (e) {
-        console.error("Error reading ai_expense_prefill from sessionStorage", e)
-      }
+      } catch {}
     }
   }, [mode])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const [selectedMemberIds, setSelectedMemberIds] = React.useState<Set<string>>(() => {
     if (expense?.splits && expense.splits.length > 0) {
-      return new Set(expense.splits.map((s) => s.member_id))
+      return new Set(
+        expense.splits
+          .filter((s) => s.member_id !== expense.paid_by_member_id)
+          .map((s) => s.member_id)
+      )
     }
-    return new Set(members.filter((member) => member.id !== currentUserMemberId).map((member) => member.id))
+    return new Set(members.filter((m) => m.id !== currentUserMemberId).map((m) => m.id))
   })
 
   const [exactAmounts, setExactAmounts] = React.useState<Record<string, string>>(() => {
-    if (expense?.splits) {
-      const map: Record<string, string> = {}
+    if (expense?.splits && expense.splits.length > 0) {
+      const initial: Record<string, string> = {}
       for (const s of expense.splits) {
-        map[s.member_id] = String(s.assigned_amount)
+        initial[s.member_id] = String(s.assigned_amount)
       }
-      if (expense.payer_participated && currentUserMemberId) {
-        map[currentUserMemberId] = String(expense.payer_contribution)
-      }
-      return map
+      return initial
     }
     return {}
   })
@@ -325,37 +308,7 @@ export function ExpenseForm({
 
         <form className="flex flex-col gap-5" onSubmit={openParticipantsSelector} noValidate>
           {/* Selector de categoría */}
-          <div className="flex flex-col items-center gap-4">
-            <div className="grid w-full max-w-[380px] grid-cols-3 gap-3">
-              {EXPENSE_CATEGORIES.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-label={`Categoría ${item.label}`}
-                  aria-pressed={category === item.id}
-                  onClick={() => setCategory(item.id as ExpenseCategory)}
-                  className={cn(
-                    "aspect-square flex flex-col items-center justify-center gap-1.5 rounded-2xl border transition-all hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3d3bff]/50",
-                    category === item.id
-                      ? "border-white bg-white/20"
-                      : "border-border bg-[#151a30]/80 hover:bg-white/10"
-                  )}
-                >
-                  <span aria-hidden="true" className="text-3xl leading-none">
-                    {item.emoji}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-[10px] font-medium leading-tight sm:text-xs",
-                      category === item.id ? "text-white" : "text-muted-foreground"
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+          <ExpenseCategorySelector category={category} onCategoryChange={setCategory} />
 
           {/* Nombre */}
           <Input
@@ -420,45 +373,10 @@ export function ExpenseForm({
           </div>
 
           {/* Modalidad de división */}
-          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-border bg-[#151a30]/60 p-1" aria-label="Modalidad de división">
-            {(["equal", "exact"] as const).map((modeOption) => (
-              <button
-                key={modeOption}
-                type="button"
-                aria-pressed={splitType === modeOption}
-                onClick={() => setSplitType(modeOption)}
-                className={cn(
-                  "rounded-xl px-3 py-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                  splitType === modeOption
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-white/10 hover:text-white",
-                )}
-              >
-                <span className="block">{modeOption === "equal" ? "Montos iguales" : "Montos exactos"}</span>
-                <span className="mt-1 block text-[11px] font-normal opacity-80">
-                  {modeOption === "equal" ? "Todos pagan por igual" : "Define cuánto paga cada persona"}
-                </span>
-              </button>
-            ))}
-          </div>
+          <ExpenseSplitModeSelector splitType={splitType} onSplitTypeChange={setSplitType} />
 
           {/* Comprobante */}
-          {receiptPreview ? (
-            <div className="flex justify-center pt-2">
-              <button
-                type="button"
-                onClick={() => setIsImageSheetOpen(true)}
-                className="group inline-flex items-center gap-1.5 text-sm font-medium text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer underline underline-offset-4 decoration-cyan-400/40 hover:decoration-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-sm"
-              >
-                <Eye className="size-4 group-hover:scale-110 transition-transform" />
-                <span>Ver comprobante adjunto</span>
-              </button>
-            </div>
-          ) : isEditing ? (
-            <div className="flex justify-center pt-1 text-xs text-muted-foreground italic">
-              Este gasto no tiene comprobante adjunto.
-            </div>
-          ) : null}
+          <ExpenseReceiptViewer receiptUrl={receiptPreview} isEditing={isEditing} />
 
           {/* Botones de acción */}
           <div className="mt-2 flex flex-col gap-3 border-t border-border pt-5 sm:flex-row">
@@ -481,64 +399,6 @@ export function ExpenseForm({
           </div>
         </form>
       </div>
-
-      {/* Bottom Sheet de Imagen en Grande (Solo Lectura) */}
-      {receiptPreview && (
-        <Sheet open={isImageSheetOpen} onOpenChange={setIsImageSheetOpen}>
-          <SheetContent
-            side="bottom"
-            showCloseButton={false}
-            className="max-h-[90vh] overflow-y-auto rounded-t-[32px] border-border bg-overlay-surface p-6 text-headline sm:max-w-xl sm:mx-auto"
-          >
-            <div className="mb-4 flex justify-center" aria-hidden="true">
-              <div className="h-1.5 w-12 rounded-full bg-headline/20" />
-            </div>
-
-            <SheetHeader className="mb-4 flex-row items-center justify-between p-0">
-              <div>
-                <SheetTitle className="text-lg font-bold text-headline">
-                  Comprobante del gasto
-                </SheetTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Foto adjunta al registro del gasto
-                </p>
-              </div>
-              <SheetClose
-                render={
-                  <button
-                    className="p-1 text-muted-foreground transition-colors hover:text-headline"
-                    aria-label="Cerrar"
-                  >
-                    <X className="size-6" />
-                  </button>
-                }
-              />
-            </SheetHeader>
-
-            <div className="flex flex-col gap-5">
-              <div className="relative flex max-h-[60vh] w-full items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/60 p-2 shadow-inner">
-                <img
-                  src={receiptPreview}
-                  alt="Comprobante del gasto"
-                  className="max-h-[55vh] w-full object-contain rounded-xl"
-                />
-              </div>
-
-              <SheetClose
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-12 w-full rounded-xl text-sm font-medium"
-                  >
-                    Cerrar
-                  </Button>
-                }
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
-      )}
 
       <ExpenseParticipantsSheet
         open={isParticipantsOpen}

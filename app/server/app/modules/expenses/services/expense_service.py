@@ -1,12 +1,13 @@
-"""Casos de uso financieros del módulo Expenses."""
+"""Casos de uso financieros y orquestación del módulo Expenses."""
 
 from datetime import UTC, datetime
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from uuid import UUID
 
 from app.core.errors import InfrastructureError, NotFoundError, ValidationError
 from app.modules.activity.services.activity import ActivityService
 from app.modules.events.services.expense_context_service import ExpenseContextService
+from app.modules.expenses.domain.split_calculator import CENT, ExpenseSplitCalculator
 from app.modules.expenses.integrations.gemini_analyzer import GeminiReceiptAnalyzer
 from app.modules.expenses.integrations.receipt_storage import ExpenseReceiptStorage
 from app.modules.expenses.models.enums import ExpenseSplitType
@@ -16,8 +17,6 @@ from app.modules.expenses.repositories.expense_repository import ExpenseReposito
 from app.modules.expenses.repositories.expense_split_repository import ExpenseSplitRepository
 from app.modules.expenses.repositories.unit_of_work import ExpenseUnitOfWork
 from app.modules.expenses.schemas.expense_schemas import (
-    DebtToCollectItem,
-    DebtToPayItem,
     DebtsSummaryRead,
     ExpenseCreateRequest,
     ExpenseDetailRead,
@@ -29,8 +28,10 @@ from app.modules.expenses.schemas.expense_schemas import (
     ExpenseUpdateRequest,
     ReceiptAnalysisResponse,
 )
-
-CENT = Decimal("0.01")
+from app.modules.expenses.services.expense_debts_service import ExpenseDebtsService
+from app.modules.expenses.services.expense_receipt_coordinator import ExpenseReceiptCoordinator
+from app.modules.expenses.services.expense_split_sync import ExpenseSplitSynchronizer
+from app.modules.payments.repositories.payment_repository import PaymentRepository
 
 
 class ExpenseService:
@@ -45,6 +46,7 @@ class ExpenseService:
         activity_service: ActivityService | None = None,
         receipt_storage: ExpenseReceiptStorage | None = None,
         gemini_analyzer: GeminiReceiptAnalyzer | None = None,
+        payment_repo: PaymentRepository | None = None,
     ):
         self.expense_repo = expense_repo
         self.split_repo = split_repo
@@ -53,20 +55,16 @@ class ExpenseService:
         self.activity_service = activity_service
         self.receipt_storage = receipt_storage
         self.gemini_analyzer = gemini_analyzer
+        self.payment_repo = payment_repo or PaymentRepository(split_repo.session)
 
-    @staticmethod
-    def _to_cents(amount: Decimal) -> int:
-        return int((amount.quantize(CENT, rounding=ROUND_HALF_UP) * 100).to_integral_value())
+        # Componentes modulares especializados
+        self.receipt_coordinator = ExpenseReceiptCoordinator(receipt_storage)
+        self.split_synchronizer = ExpenseSplitSynchronizer(split_repo)
+        self.debts_service = ExpenseDebtsService(
+            self.expense_repo, self.split_repo, event_context, self.payment_repo
+        )
 
-    @staticmethod
-    def _from_cents(cents: int) -> Decimal:
-        return (Decimal(cents) / Decimal(100)).quantize(CENT)
-
-    @staticmethod
-    def _unique_member_ids(member_ids: list[UUID]) -> list[UUID]:
-        if len(set(member_ids)) != len(member_ids):
-            raise ValidationError("No se permiten participantes duplicados en el reparto.")
-        return sorted(member_ids)
+    # --- Métodos de delegación de cálculo de dominio ---
 
     @classmethod
     def calculate_equal_distribution(
@@ -76,50 +74,15 @@ class ExpenseService:
         payer_member_id: UUID,
         payer_participated: bool,
     ) -> tuple[list[tuple[UUID, Decimal]], Decimal]:
-        """Divide entre consumidores y omite siempre la cuota del pagador."""
-        if amount <= Decimal("0.00"):
-            raise ValidationError("El monto del gasto debe ser mayor a 0.")
-
-        others = cls._unique_member_ids(other_member_ids)
-        if payer_member_id in others:
-            raise ValidationError(
-                "El pagador no puede tener una cuota de deuda en su propio gasto."
-            )
-        if not others and not payer_participated:
-            raise ValidationError(
-                "Selecciona al menos una persona cuando indicas que no participaste en el gasto."
-            )
-        if not others:
-            return [], Decimal("0.00")
-
-        consumers = ([payer_member_id] if payer_participated else []) + others
-        total_cents = cls._to_cents(amount)
-        base, remainder = divmod(total_cents, len(consumers))
-        amounts_by_member = {
-            member_id: base + (1 if index < remainder else 0)
-            for index, member_id in enumerate(consumers)
-        }
-        splits = [
-            (member_id, cls._from_cents(amounts_by_member[member_id])) for member_id in others
-        ]
-        return splits, sum((assigned for _, assigned in splits), Decimal("0.00"))
+        return ExpenseSplitCalculator.calculate_equal_distribution(
+            amount, other_member_ids, payer_member_id, payer_participated
+        )
 
     @classmethod
     def calculate_equal_splits(
         cls, amount: Decimal, member_ids: list[UUID]
     ) -> list[tuple[UUID, Decimal]]:
-        """Compatibilidad de cálculo puro para consumidores sin pagador explícito."""
-        if amount <= Decimal("0.00"):
-            raise ValidationError("El monto del gasto debe ser mayor a 0.")
-        members = cls._unique_member_ids(member_ids)
-        if not members:
-            raise ValidationError("Debe incluir al menos un participante.")
-        total_cents = cls._to_cents(amount)
-        base, remainder = divmod(total_cents, len(members))
-        return [
-            (member_id, cls._from_cents(base + (1 if index < remainder else 0)))
-            for index, member_id in enumerate(members)
-        ]
+        return ExpenseSplitCalculator.calculate_equal_splits(amount, member_ids)
 
     @classmethod
     def calculate_exact_distribution(
@@ -129,69 +92,17 @@ class ExpenseService:
         payer_member_id: UUID,
         payer_participated: bool,
     ) -> tuple[list[tuple[UUID, Decimal]], Decimal]:
-        """Normaliza cuotas positivas y conserva la diferencia como aporte propio."""
-        if amount <= Decimal("0.00"):
-            raise ValidationError("El monto del gasto debe ser mayor a 0.")
-        normalized: list[tuple[UUID, Decimal]] = []
-        payer_amount: Decimal | None = None
-        seen: set[UUID] = set()
-        for item in splits_input:
-            member_id = item.member_id if isinstance(item, ExpenseSplitRequest) else item[0]
-            assigned = item.assigned_amount if isinstance(item, ExpenseSplitRequest) else item[1]
-            assigned = assigned.quantize(CENT, rounding=ROUND_HALF_UP)
-            if assigned < Decimal("0.00"):
-                raise ValidationError("La cuota asignada no puede ser negativa.")
-            if member_id == payer_member_id:
-                if not payer_participated:
-                    raise ValidationError("El pagador no puede aparecer si no participó en el gasto.")
-                if payer_amount is not None:
-                    raise ValidationError("No se permiten participantes duplicados en el reparto.")
-                payer_amount = assigned
-                continue
-            if member_id in seen:
-                raise ValidationError("No se permiten participantes duplicados en el reparto.")
-            seen.add(member_id)
-            if assigned > Decimal("0.00"):
-                normalized.append((member_id, assigned))
-
-        refund = sum((assigned for _, assigned in normalized), Decimal("0.00")).quantize(CENT)
-        if refund > amount:
-            raise ValidationError("La devolución no puede superar el monto total del gasto.")
-        if not payer_participated and refund != amount:
-            raise ValidationError(
-                "Si no participaste, las cuotas de los demás deben cubrir el monto total."
-            )
-        if payer_participated and payer_amount is not None and payer_amount + refund != amount:
-            raise ValidationError(
-                "El aporte del pagador y la devolución deben coincidir con el monto total."
-            )
-        return normalized, refund
+        return ExpenseSplitCalculator.calculate_exact_distribution(
+            amount, splits_input, payer_member_id, payer_participated
+        )
 
     @staticmethod
     def validate_exact_splits(
         amount: Decimal, splits_input: list[tuple[UUID, Decimal]] | list[ExpenseSplitRequest]
     ) -> list[tuple[UUID, Decimal]]:
-        """Compatibilidad de la validación histórica usada por pruebas existentes."""
-        member_ids = [
-            item.member_id if isinstance(item, ExpenseSplitRequest) else item[0]
-            for item in splits_input
-        ]
-        if len(member_ids) != len(set(member_ids)):
-            raise ValidationError("No se permiten participantes duplicados en el reparto.")
-        normalized = [
-            (
-                item.member_id if isinstance(item, ExpenseSplitRequest) else item[0],
-                (
-                    item.assigned_amount if isinstance(item, ExpenseSplitRequest) else item[1]
-                ).quantize(CENT),
-            )
-            for item in splits_input
-        ]
-        if sum((value for _, value in normalized), Decimal("0.00")) != amount:
-            raise ValidationError(
-                f"La suma de las cuotas asignadas no coincide con el total del gasto (Bs. {amount:.2f})."
-            )
-        return normalized
+        return ExpenseSplitCalculator.validate_exact_splits(amount, splits_input)
+
+    # --- Validaciones y mapeos internos ---
 
     def _validate_other_members(
         self, event_id: UUID, payer_id: UUID, member_ids: list[UUID]
@@ -259,6 +170,8 @@ class ExpenseService:
             updated_at=expense.updated_at,
         )
 
+    # --- Casos de uso de gestión de gastos ---
+
     def create_expense(
         self,
         event_id: UUID,
@@ -277,12 +190,11 @@ class ExpenseService:
             request.participant_member_ids,
             request.splits,
         )
-        uploaded_receipt_public_id: str | None = None
-        receipt_url = request.receipt_url
-        if receipt_file is not None and self.receipt_storage is not None:
-            content, content_type = receipt_file
-            stored = self.receipt_storage.upload_receipt(content, str(event_id), content_type)
-            receipt_url, uploaded_receipt_public_id = stored.secure_url, stored.public_id
+
+        receipt_url, uploaded_receipt_public_id = self.receipt_coordinator.upload_if_present(
+            receipt_file, event_id, fallback_url=request.receipt_url
+        )
+
         try:
             expense = self.expense_repo.create(
                 Expense(
@@ -301,14 +213,17 @@ class ExpenseService:
                     receipt_public_id=uploaded_receipt_public_id,
                 )
             )
-            self.split_repo.create_all(
-                [
-                    ExpenseSplit(
-                        expense_id=expense.id, member_id=member_id, assigned_amount=assigned
-                    )
-                    for member_id, assigned in calculated_splits
-                ]
-            )
+
+            splits = [
+                ExpenseSplit(
+                    expense_id=expense.id,
+                    member_id=member_id,
+                    assigned_amount=assigned_amount,
+                )
+                for member_id, assigned_amount in calculated_splits
+            ]
+            self.split_repo.create_all(splits)
+
             if self.activity_service:
                 actor_name = self.event_context.actor_name(user_id)
                 self.activity_service.log_activity(
@@ -316,35 +231,43 @@ class ExpenseService:
                     actor_id=user_id,
                     actor_name=actor_name,
                     action_type="expense_created",
-                    description=f'{actor_name} registró el gasto "{expense.name}" por Bs. {expense.amount:.2f}.',
+                    description=f'{actor_name} registró el gasto "{expense.name}".',
                     target_id=str(expense.id),
                     target_name=expense.name,
                 )
+
             self.uow.commit()
             return self._expense_read(expense)
         except Exception:
             self.uow.rollback()
-            if uploaded_receipt_public_id and self.receipt_storage:
-                try:
-                    self.receipt_storage.destroy(uploaded_receipt_public_id)
-                except Exception:
-                    pass
+            self.receipt_coordinator.compensate_on_rollback(uploaded_receipt_public_id)
             raise
 
     def list_event_expenses(
         self, event_id: UUID, user_id: str, filter_type: str = "all"
     ) -> list[ExpenseSummaryRead]:
         context = self.event_context.require_active_member(event_id, user_id)
-        result: list[ExpenseSummaryRead] = []
-        for expense in self.expense_repo.list_by_event(event_id):
+        current_member_id = context.current_member.id
+
+        all_expenses = self.expense_repo.list_by_event(event_id)
+        summaries: list[ExpenseSummaryRead] = []
+
+        for expense in all_expenses:
             splits = self.split_repo.list_active_by_expense(expense.id)
-            is_payer = expense.paid_by_member_id == context.current_member.id
-            is_participant = any(split.member_id == context.current_member.id for split in splits)
-            if filter_type == "mine" and not (is_payer or is_participant):
+            user_split = next((s for s in splits if s.member_id == current_member_id), None)
+            is_payer = expense.paid_by_member_id == current_member_id
+            user_involved = is_payer or (user_split is not None)
+
+            if filter_type == "mine" and not user_involved:
                 continue
-            if filter_type == "others" and (is_payer or is_participant):
+            if filter_type == "others" and user_involved:
                 continue
-            result.append(
+            if filter_type not in ("all", "mine", "others"):
+                raise ValidationError("Filtro de gastos no válido. Use all, mine u others.")
+
+            paid_by_name = self.event_context.member_name(expense.paid_by_member_id, "Miembro")
+
+            summaries.append(
                 ExpenseSummaryRead(
                     id=expense.id,
                     event_id=expense.event_id,
@@ -358,54 +281,43 @@ class ExpenseService:
                     split_type=expense.split_type,
                     expense_date=expense.expense_date,
                     paid_by_member_id=expense.paid_by_member_id,
-                    paid_by_member_name=self.event_context.member_name(expense.paid_by_member_id),
-                    has_receipt=bool(expense.receipt_url),
+                    paid_by_member_name=paid_by_name,
+                    has_receipt=expense.receipt_url is not None,
                     created_at=expense.created_at,
                 )
             )
-        return result
+
+        return summaries
 
     def get_expense_detail(self, expense_id: UUID, user_id: str) -> ExpenseDetailRead:
+        from app.modules.payments.models.enums import PaymentStatus
+        from app.modules.payments.models.payment import Payment
+
         expense = self.expense_repo.get_by_id(expense_id)
-        if expense is None:
-            raise NotFoundError("Gasto no encontrado.")
+        if not expense:
+            raise NotFoundError("El gasto solicitado no existe.")
+
         context = self.event_context.require_active_member(expense.event_id, user_id)
+        is_payer = expense.paid_by_member_id == context.current_member.id
 
-        splits_raw = [
-            split
-            for split in self.split_repo.list_active_by_expense(expense.id)
-            if split.member_id != expense.paid_by_member_id
-            and split.assigned_amount > Decimal("0.00")
-        ]
-        split_ids = [s.id for s in splits_raw]
-
-        payments_by_split = {}
-        if split_ids:
-            from sqlmodel import col, desc, select
-
-            from app.modules.payments.models.payment import Payment
-
-            payments = list(
-                self.split_repo.session.exec(
-                    select(Payment)
-                    .where(
-                        col(Payment.split_id).in_(split_ids),
-                        Payment.deleted_at.is_(None),
-                    )
-                    .order_by(desc(Payment.created_at))
-                ).all()
-            )
-            for p in payments:
-                if p.split_id not in payments_by_split:
-                    payments_by_split[p.split_id] = p
-                elif p.status == "confirmed":
-                    payments_by_split[p.split_id] = p
-
+        splits = self.split_repo.list_active_by_expense(expense.id)
         splits_read: list[ExpenseSplitRead] = []
         current_user_split: ExpenseSplitRead | None = None
-        is_payer = context.current_member.id == expense.paid_by_member_id
 
-        for split in splits_raw:
+        split_ids = [s.id for s in splits]
+        payments_by_split: dict[UUID, Payment] = {}
+        if split_ids:
+            payments = self.payment_repo.list_by_split_ids(split_ids)
+            latest_payments: dict[UUID, Payment] = {}
+            confirmed_payments: dict[UUID, Payment] = {}
+            for p in payments:
+                if p.split_id not in latest_payments:
+                    latest_payments[p.split_id] = p
+                if p.status == PaymentStatus.CONFIRMED and p.split_id not in confirmed_payments:
+                    confirmed_payments[p.split_id] = p
+            payments_by_split = {**latest_payments, **confirmed_payments}
+
+        for split in splits:
             payment = payments_by_split.get(split.id)
             payment_status = "no_payment"
             payment_id = None
@@ -464,26 +376,6 @@ class ExpenseService:
             splits=splits_read,
         )
 
-    def _sync_splits(self, expense: Expense, calculated: list[tuple[UUID, Decimal]]) -> None:
-        existing = self.split_repo.list_all_by_expense(expense.id, include_deleted=True)
-        by_member = {split.member_id: split for split in existing}
-        targets = {member_id for member_id, _ in calculated}
-        for member_id, assigned in calculated:
-            split = by_member.get(member_id)
-            if split is None:
-                self.split_repo.create(
-                    ExpenseSplit(
-                        expense_id=expense.id, member_id=member_id, assigned_amount=assigned
-                    )
-                )
-            else:
-                split.assigned_amount, split.deleted_at = assigned, None
-                self.split_repo.update(split)
-        for split in existing:
-            if split.deleted_at is None and split.member_id not in targets:
-                split.deleted_at = datetime.now(UTC)
-                self.split_repo.update(split)
-
     def update_expense(
         self,
         expense_id: UUID,
@@ -492,11 +384,13 @@ class ExpenseService:
         receipt_file: tuple[bytes, str] | None = None,
     ) -> ExpenseDetailRead:
         expense = self.expense_repo.get_by_id(expense_id)
-        if expense is None:
-            raise NotFoundError("Gasto no encontrado.")
+        if not expense:
+            raise NotFoundError("El gasto solicitado no existe.")
+
         self.event_context.require_expense_editor(
             expense.event_id, expense.created_by_member_id, user_id
         )
+
         if request.name is not None:
             expense.name = request.name.strip()
         if request.description is not None:
@@ -558,10 +452,12 @@ class ExpenseService:
             )
             expense.receipt_url, expense.receipt_public_id = stored.secure_url, stored.public_id
             uploaded_receipt_public_id = stored.public_id
+
         try:
             self.expense_repo.update(expense)
             if calculated is not None:
-                self._sync_splits(expense, calculated)
+                self.split_synchronizer.sync_splits(expense, calculated)
+
             if self.activity_service:
                 actor_name = self.event_context.actor_name(user_id)
                 self.activity_service.log_activity(
@@ -573,31 +469,34 @@ class ExpenseService:
                     target_id=str(expense.id),
                     target_name=expense.name,
                 )
+
             self.uow.commit()
-            if uploaded_receipt_public_id and old_receipt_public_id and self.receipt_storage:
-                try:
-                    self.receipt_storage.destroy(old_receipt_public_id)
-                except Exception:
-                    pass
+            if uploaded_receipt_public_id and old_receipt_public_id:
+                self.receipt_coordinator.destroy_safely(old_receipt_public_id)
+
             return self.get_expense_detail(expense.id, user_id)
         except Exception:
             self.uow.rollback()
-            if uploaded_receipt_public_id and self.receipt_storage:
-                try:
-                    self.receipt_storage.destroy(uploaded_receipt_public_id)
-                except Exception:
-                    pass
+            self.receipt_coordinator.compensate_on_rollback(uploaded_receipt_public_id)
             raise
 
     def delete_expense(self, expense_id: UUID, user_id: str) -> None:
         expense = self.expense_repo.get_by_id(expense_id)
-        if expense is None:
-            raise NotFoundError("Gasto no encontrado.")
+        if not expense:
+            raise NotFoundError("El gasto solicitado no existe.")
+
         self.event_context.require_expense_editor(
             expense.event_id, expense.created_by_member_id, user_id
         )
+
         try:
+            active_splits = self.split_repo.list_active_by_expense(expense.id)
+            now = datetime.now(UTC)
+            for split in active_splits:
+                split.deleted_at = now
+            self.split_repo.update_all(active_splits)
             self.expense_repo.soft_delete(expense)
+
             if self.activity_service:
                 actor_name = self.event_context.actor_name(user_id)
                 self.activity_service.log_activity(
@@ -645,188 +544,9 @@ class ExpenseService:
             f"{self.receipt_storage.folder}/{event_id}"
         ):
             return
-        try:
-            self.receipt_storage.destroy(public_id)
-        except Exception:
-            pass
+        self.receipt_coordinator.destroy_safely(public_id)
 
     def get_debts_summary(
         self, user_id: str, event_id: UUID | None = None
     ) -> DebtsSummaryRead:
-        from sqlmodel import col, desc, select
-
-        from app.modules.payments.models.enums import PaymentStatus
-        from app.modules.payments.models.payment import Payment
-
-        # 1. Resolver eventos activos y membresías del usuario a través de ExpenseContextService
-        memberships = self.event_context.list_user_active_event_memberships(
-            user_id, event_id=event_id
-        )
-        if not memberships and event_id is not None:
-            # Validar que si especificó un evento pero no se encontró, requerir membresía
-            self.event_context.require_active_member(event_id, user_id)
-
-        events_by_id = {m.event_id: m.event_name for m in memberships}
-        members_by_event = {m.event_id: m.member_id for m in memberships}
-        relevant_event_ids = list(events_by_id.keys())
-
-        if not relevant_event_ids:
-            return DebtsSummaryRead(
-                total_i_owe=Decimal("0.00"),
-                total_i_am_owed=Decimal("0.00"),
-                debts_to_pay=[],
-                debts_to_collect=[],
-            )
-
-        # 2. Obtener pagos de todos los splits de los eventos relevantes
-        # Primero buscar los gastos activos de esos eventos
-        expenses = list(
-            self.split_repo.session.exec(
-                select(Expense).where(
-                    col(Expense.event_id).in_(relevant_event_ids),
-                    Expense.deleted_at.is_(None),
-                )
-            ).all()
-        )
-        expense_ids = [e.id for e in expenses]
-        expenses_by_id = {e.id: e for e in expenses}
-
-        splits = []
-        if expense_ids:
-            splits = list(
-                self.split_repo.session.exec(
-                    select(ExpenseSplit).where(
-                        col(ExpenseSplit.expense_id).in_(expense_ids),
-                        ExpenseSplit.deleted_at.is_(None),
-                        ExpenseSplit.assigned_amount > Decimal("0.00"),
-                    )
-                ).all()
-            )
-
-        split_ids = [s.id for s in splits]
-        payments_by_split: dict[UUID, Payment] = {}
-        if split_ids:
-            payments = list(
-                self.split_repo.session.exec(
-                    select(Payment)
-                    .where(
-                        col(Payment.split_id).in_(split_ids),
-                        Payment.deleted_at.is_(None),
-                    )
-                    .order_by(desc(Payment.created_at))
-                ).all()
-            )
-            for p in payments:
-                if p.split_id not in payments_by_split:
-                    payments_by_split[p.split_id] = p
-                elif p.status == PaymentStatus.CONFIRMED:
-                    payments_by_split[p.split_id] = p
-
-        # 3. Calcular "Lo que debo" (debts_to_pay)
-        debts_to_pay: list[DebtToPayItem] = []
-        total_i_owe = Decimal("0.00")
-
-        # Agrupar splits por miembro usuario
-        for split in splits:
-            expense = expenses_by_id.get(split.expense_id)
-            if not expense:
-                continue
-            user_member_id = members_by_event.get(expense.event_id)
-            if not user_member_id:
-                continue
-
-            # Es una cuota asignada a mí en un gasto que pagó otra persona
-            if split.member_id == user_member_id and expense.paid_by_member_id != user_member_id:
-                payment = payments_by_split.get(split.id)
-                # Si el pago está confirmado, ya está saldado
-                if payment and payment.status == PaymentStatus.CONFIRMED:
-                    continue
-
-                payment_status = "no_payment"
-                payment_id = None
-                if payment:
-                    payment_status = (
-                        payment.status.value
-                        if hasattr(payment.status, "value")
-                        else str(payment.status)
-                    )
-                    payment_id = payment.id
-
-                event_name = events_by_id.get(expense.event_id, "Evento")
-                payer_name = self.event_context.member_name(expense.paid_by_member_id, "Acreedor")
-
-                debts_to_pay.append(
-                    DebtToPayItem(
-                        expense_id=expense.id,
-                        split_id=split.id,
-                        expense_name=expense.name,
-                        category=expense.category,
-                        event_id=expense.event_id,
-                        event_name=event_name,
-                        payer_name=payer_name,
-                        amount=split.assigned_amount,
-                        payment_status=payment_status,
-                        payment_id=payment_id,
-                    )
-                )
-                total_i_owe += split.assigned_amount
-
-        # 4. Calcular "Lo que me deben" (debts_to_collect)
-        debts_to_collect: list[DebtToCollectItem] = []
-        total_i_am_owed = Decimal("0.00")
-
-        splits_by_expense: dict[UUID, list[ExpenseSplit]] = {}
-        for s in splits:
-            splits_by_expense.setdefault(s.expense_id, []).append(s)
-
-        for expense in expenses:
-            user_member_id = members_by_event.get(expense.event_id)
-            if not user_member_id:
-                continue
-
-            # Yo soy el pagador de este gasto
-            if expense.paid_by_member_id == user_member_id:
-                expense_splits = splits_by_expense.get(expense.id, [])
-                pending_amount = Decimal("0.00")
-                unpaid_count = 0
-                pending_verification_count = 0
-
-                for s in expense_splits:
-                    # Omitir mi propio consumo
-                    if s.member_id == user_member_id:
-                        continue
-
-                    payment = payments_by_split.get(s.id)
-                    if payment and payment.status == PaymentStatus.CONFIRMED:
-                        # Ya pagado
-                        continue
-                    elif payment and payment.status == PaymentStatus.PENDING_CONFIRMATION:
-                        pending_verification_count += 1
-                        pending_amount += s.assigned_amount
-                    else:
-                        unpaid_count += 1
-                        pending_amount += s.assigned_amount
-
-                if pending_amount > Decimal("0.00"):
-                    event_name = events_by_id.get(expense.event_id, "Evento")
-                    debts_to_collect.append(
-                        DebtToCollectItem(
-                            expense_id=expense.id,
-                            expense_name=expense.name,
-                            category=expense.category,
-                            event_id=expense.event_id,
-                            event_name=event_name,
-                            total_pending_amount=pending_amount,
-                            unpaid_count=unpaid_count,
-                            pending_verification_count=pending_verification_count,
-                        )
-                    )
-                    total_i_am_owed += pending_amount
-
-        return DebtsSummaryRead(
-            total_i_owe=total_i_owe.quantize(CENT),
-            total_i_am_owed=total_i_am_owed.quantize(CENT),
-            debts_to_pay=debts_to_pay,
-            debts_to_collect=debts_to_collect,
-        )
-
+        return self.debts_service.get_debts_summary(user_id, event_id=event_id)
